@@ -6,17 +6,17 @@ export default function CTA() {
           From Excel to Insights<br />
           in Minutes
         </h2>
-        <p className="text-sm text-black/60 mb-10">Start your free trial today. No credit card required.</p>
+        <p className="text-sm text-green-600 mb-10">Start your free trial today. No credit card required.</p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
-            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 rounded-lg shadow-sm hover:shadow-md"
+            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition-all duration-300 rounded-lg shadow-sm hover:shadow-md"
             href="#"
           >
             Start Free
             <span className="material-symbols-outlined text-base ml-1.5">arrow_forward</span>
           </a>
           <a
-            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-black/70 border border-black/20 hover:bg-black/5 hover:border-black/40 hover:text-black transition-all duration-300 rounded-lg"
+            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-green-700 border border-green-600/20 hover:bg-green-600/5 hover:border-green-600/40 hover:text-green-700 transition-all duration-300 rounded-lg"
             href="#"
           >
             Book Demo

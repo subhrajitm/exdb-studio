@@ -72,11 +72,11 @@ export default function FeaturesPage() {
       <div className="pt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center mb-8">
-            <p className="text-xs font-semibold text-black/70 mb-1">Features</p>
+            <p className="text-xs font-semibold text-green-700 mb-1">Features</p>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-light text-black tracking-tight mb-2">
               Everything you need to transform Excel into insights
             </h1>
-            <p className="text-sm text-black/60 max-w-2xl mx-auto">
+            <p className="text-sm text-green-600 max-w-2xl mx-auto">
               Five powerful modules working together in one unified workspace.
             </p>
           </div>
@@ -88,24 +88,24 @@ export default function FeaturesPage() {
                 className={`flex flex-col ${index % 2 === 0 ? 'lg:flex-row' : 'lg:flex-row-reverse'} gap-6 items-center`}
               >
                 <div className="flex-1">
-                  <div className="w-12 h-12 rounded-lg border border-black/10 flex items-center justify-center mb-3 bg-black/5">
+                  <div className="w-12 h-12 rounded-lg border border-green-600/10 flex items-center justify-center mb-3 bg-green-600/5">
                     <span className="material-symbols-outlined text-xl text-black">
                       {feature.icon}
                     </span>
                   </div>
                   <h2 className="text-2xl font-light text-black tracking-tight mb-2">{feature.title}</h2>
-                  <p className="text-sm text-black/60 mb-4 leading-relaxed">{feature.description}</p>
+                  <p className="text-sm text-green-600 mb-4 leading-relaxed">{feature.description}</p>
                   <ul className="space-y-2">
                     {feature.details.map((detail, idx) => (
                       <li key={idx} className="flex items-start">
-                        <span className="material-symbols-outlined text-base text-black/70 mr-2 mt-0.5">check_circle</span>
-                        <span className="text-sm text-black/60">{detail}</span>
+                        <span className="material-symbols-outlined text-base text-green-700 mr-2 mt-0.5">check_circle</span>
+                        <span className="text-sm text-green-600">{detail}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
                 <div className="flex-1">
-                  <div className="border border-black/5 rounded-lg p-6 bg-white/30 h-48 flex items-center justify-center">
+                  <div className="border border-green-600/5 rounded-lg p-6 bg-white/30 h-48 flex items-center justify-center">
                     <span className="text-black/20 text-xs">Feature visualization</span>
                   </div>
                 </div>

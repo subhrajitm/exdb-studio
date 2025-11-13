@@ -32,25 +32,25 @@ export default function Features() {
       <div className="max-w-6xl mx-auto w-full">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-6">
           <div className="lg:col-span-1">
-            <p className="text-xs font-semibold text-black/70 mb-1.5">Core Features</p>
+            <p className="text-xs font-semibold text-green-700 mb-1.5">Core Features</p>
             <h2 className="text-2xl sm:text-3xl font-light text-black tracking-tight mb-3">
               Everything you need to transform Excel into insights
             </h2>
-            <p className="text-xs text-black/50">Five powerful modules working together in one unified workspace.</p>
+            <p className="text-xs text-green-600/50">Five powerful modules working together in one unified workspace.</p>
           </div>
           <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="group border border-black/5 p-5 hover:border-black/20 hover:shadow-md transition-all duration-300 cursor-pointer rounded-lg bg-white/50"
+                className="group border border-green-600/5 p-5 hover:border-green-600/20 hover:shadow-md transition-all duration-300 cursor-pointer rounded-lg bg-white/50"
               >
-                <div className="w-10 h-10 rounded-lg border border-black/10 flex items-center justify-center mb-3 group-hover:bg-black/10 group-hover:border-black/20 transition-all duration-300">
-                  <span className="material-symbols-outlined text-lg text-black/70 group-hover:text-black transition-all duration-300">
+                <div className="w-10 h-10 rounded-lg border border-green-600/10 flex items-center justify-center mb-3 group-hover:bg-green-600/10 group-hover:border-green-600/20 transition-all duration-300">
+                  <span className="material-symbols-outlined text-lg text-green-700 group-hover:text-green-700 transition-all duration-300">
                     {feature.icon}
                   </span>
                 </div>
                 <h3 className="text-base font-medium text-black/90 mb-1.5">{feature.title}</h3>
-                <p className="text-xs text-black/50 leading-relaxed">{feature.description}</p>
+                <p className="text-xs text-green-600/50 leading-relaxed">{feature.description}</p>
               </div>
             ))}
           </div>

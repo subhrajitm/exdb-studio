@@ -96,16 +96,16 @@ export default function PricingPage() {
       <div className="pt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center mb-8">
-            <p className="text-xs font-semibold text-black/70 mb-1">Pricing</p>
+            <p className="text-xs font-semibold text-green-700 mb-1">Pricing</p>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-light text-black tracking-tight mb-2">
               Simple, transparent pricing
             </h1>
-            <p className="text-sm text-black/60 max-w-2xl mx-auto mb-4">
+            <p className="text-sm text-green-600 max-w-2xl mx-auto mb-4">
               Use Exdata Studio for free with your team. Upgrade to enable unlimited users and enhanced features.
             </p>
-            <div className="flex items-center justify-center gap-2 text-xs text-black/60">
+            <div className="flex items-center justify-center gap-2 text-xs text-green-600">
               <span>Monthly</span>
-              <span className="px-2 py-1 bg-black/5 rounded text-xs font-medium">Save 20%</span>
+              <span className="px-2 py-1 bg-green-600/5 rounded text-xs font-medium">Save 20%</span>
               <span>Annual</span>
             </div>
           </div>
@@ -116,28 +116,28 @@ export default function PricingPage() {
                 key={index}
                 className={`border p-5 rounded-lg transition-all duration-300 ${
                   plan.highlighted
-                    ? 'border-black/20 bg-white/50 shadow-lg scale-105'
-                    : 'border-black/5 bg-white/30 hover:border-black/20 hover:shadow-md'
+                    ? 'border-green-600/20 bg-white/50 shadow-lg scale-105'
+                    : 'border-green-600/5 bg-white/30 hover:border-green-600/20 hover:shadow-md'
                 }`}
               >
                 {plan.highlighted && (
                   <div className="mb-3">
-                    <span className="inline-block px-2 py-0.5 text-xs font-medium bg-black text-white rounded-full">
+                    <span className="inline-block px-2 py-0.5 text-xs font-medium bg-green-600 text-white rounded-full">
                       Most Popular
                     </span>
                   </div>
                 )}
                 <h3 className="text-xl font-medium mb-1 text-black/90">{plan.name}</h3>
-                <p className="text-xs text-black/50 mb-4">{plan.description}</p>
+                <p className="text-xs text-green-600/50 mb-4">{plan.description}</p>
                 <div className="mb-4">
                   <span className="text-3xl font-light">{plan.price}</span>
-                  {plan.period && <span className="text-sm text-black/50 ml-1">{plan.period}</span>}
+                  {plan.period && <span className="text-sm text-green-600/50 ml-1">{plan.period}</span>}
                 </div>
                 <ul className="space-y-2 mb-6">
                   {plan.features.map((feature, idx) => (
                     <li key={idx} className="flex items-start">
-                      <span className="material-symbols-outlined text-base text-black/70 mr-2 mt-0.5">check_circle</span>
-                      <span className="text-sm text-black/60">{feature}</span>
+                      <span className="material-symbols-outlined text-base text-green-700 mr-2 mt-0.5">check_circle</span>
+                      <span className="text-sm text-green-600">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -145,8 +145,8 @@ export default function PricingPage() {
                   href={plan.name === 'Enterprise' || plan.name === 'Team' ? '/contact' : '/register'}
                   className={`block w-full text-center px-4 py-2.5 text-sm font-medium transition-all duration-300 rounded-lg shadow-sm hover:shadow-md ${
                     plan.highlighted || plan.name === 'Free'
-                      ? 'text-white bg-black hover:bg-black/90'
-                      : 'text-black/70 border border-black/20 hover:bg-black/5 hover:border-black/40 hover:text-black'
+                      ? 'text-white bg-green-600 hover:bg-green-700'
+                      : 'text-green-700 border border-green-600/20 hover:bg-green-600/5 hover:border-green-600/40 hover:text-green-700'
                   }`}
                 >
                   {plan.cta}
@@ -161,15 +161,15 @@ export default function PricingPage() {
             </h2>
             <div className="max-w-3xl mx-auto space-y-3">
               {faqs.map((faq, index) => (
-                <div key={index} className="border border-black/5 p-4 rounded-lg bg-white/30">
+                <div key={index} className="border border-green-600/5 p-4 rounded-lg bg-white/30">
                   <h3 className="text-base font-medium text-black mb-1">{faq.question}</h3>
-                  <p className="text-xs text-black/60 leading-relaxed">{faq.answer}</p>
+                  <p className="text-xs text-green-600 leading-relaxed">{faq.answer}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="text-center bg-black/95 backdrop-blur-sm text-white p-8 rounded-lg">
+          <div className="text-center bg-green-600/95 backdrop-blur-sm text-white p-8 rounded-lg">
             <h2 className="text-2xl font-light mb-2">Need help choosing a plan?</h2>
             <p className="text-white/70 mb-6 text-sm">Our team is here to help you find the perfect solution.</p>
             <Link

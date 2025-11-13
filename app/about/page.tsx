@@ -49,11 +49,11 @@ export default function AboutPage() {
       <div className="pt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center mb-8">
-            <p className="text-xs font-semibold text-black/70 mb-1">About Us</p>
+            <p className="text-xs font-semibold text-green-700 mb-1">About Us</p>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-light text-black tracking-tight mb-2">
               Why Exdata Studio
             </h1>
-            <p className="text-sm text-black/60 max-w-2xl mx-auto">
+            <p className="text-sm text-green-600 max-w-2xl mx-auto">
               We're on a mission to make data transformation accessible to everyone.
             </p>
           </div>
@@ -62,20 +62,20 @@ export default function AboutPage() {
             {values.map((value, index) => (
               <div
                 key={index}
-                className="border border-black/5 p-5 rounded-lg hover:border-black/20 hover:shadow-md transition-all duration-300 bg-white/50"
+                className="border border-green-600/5 p-5 rounded-lg hover:border-green-600/20 hover:shadow-md transition-all duration-300 bg-white/50"
               >
-                <div className="w-10 h-10 rounded-lg border border-black/10 flex items-center justify-center mb-3 bg-black/5">
+                <div className="w-10 h-10 rounded-lg border border-green-600/10 flex items-center justify-center mb-3 bg-green-600/5">
                   <span className="material-symbols-outlined text-lg text-black">{value.icon}</span>
                 </div>
                 <h3 className="text-lg font-medium text-black mb-1">{value.title}</h3>
-                <p className="text-xs text-black/60 leading-relaxed">{value.description}</p>
+                <p className="text-xs text-green-600 leading-relaxed">{value.description}</p>
               </div>
             ))}
           </div>
 
           <div className="mb-12">
             <h2 className="text-2xl font-light text-black tracking-tight mb-4 text-center">Our Story</h2>
-            <div className="max-w-3xl mx-auto space-y-3 text-sm text-black/60 leading-relaxed">
+            <div className="max-w-3xl mx-auto space-y-3 text-sm text-green-600 leading-relaxed">
               <p>
                 Exdata Studio was born from a simple observation: businesses spend countless hours manually
                 transforming Excel files into databases, only to struggle with analysis and reporting. We
@@ -100,20 +100,20 @@ export default function AboutPage() {
               {team.map((member, index) => (
                 <div
                   key={index}
-                  className="text-center border border-black/5 p-4 rounded-lg hover:border-black/20 hover:shadow-sm transition-all duration-300 bg-white/30"
+                  className="text-center border border-green-600/5 p-4 rounded-lg hover:border-green-600/20 hover:shadow-sm transition-all duration-300 bg-white/30"
                 >
-                  <div className="w-16 h-16 rounded-full bg-black/5 border border-black/10 mx-auto mb-3 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-2xl text-black/40">person</span>
+                  <div className="w-16 h-16 rounded-full bg-green-600/5 border border-green-600/10 mx-auto mb-3 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-2xl text-green-600/40">person</span>
                   </div>
                   <h3 className="text-base font-medium text-black mb-1">{member.name}</h3>
-                  <p className="text-xs font-medium text-black/70 mb-1">{member.role}</p>
-                  <p className="text-xs text-black/50">{member.description}</p>
+                  <p className="text-xs font-medium text-green-700 mb-1">{member.role}</p>
+                  <p className="text-xs text-green-600/50">{member.description}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bg-black/95 backdrop-blur-sm text-white p-8 rounded-lg">
+          <div className="bg-green-600/95 backdrop-blur-sm text-white p-8 rounded-lg">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl font-light mb-2">Join Our Mission</h2>
               <p className="text-white/70 mb-6 text-sm">

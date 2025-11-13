@@ -131,11 +131,11 @@ export default function FAQPage() {
       <div className="pt-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center mb-8">
-            <p className="text-xs font-semibold text-black/70 mb-1">FAQ</p>
+            <p className="text-xs font-semibold text-green-700 mb-1">FAQ</p>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-light text-black tracking-tight mb-2">
               Frequently Asked Questions
             </h1>
-            <p className="text-sm text-black/60 max-w-2xl mx-auto">
+            <p className="text-sm text-green-600 max-w-2xl mx-auto">
               Everything you need to know about Exdata Studio
             </p>
           </div>
@@ -150,15 +150,15 @@ export default function FAQPage() {
                     return (
                       <div
                         key={questionIndex}
-                        className="border border-black/5 rounded-lg bg-white/30 overflow-hidden"
+                        className="border border-green-600/5 rounded-lg bg-white/30 overflow-hidden"
                       >
                         <button
                           onClick={() => toggleQuestion(categoryIndex, questionIndex)}
-                          className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-black/5 transition-all duration-300"
+                          className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-green-600/5 transition-all duration-300"
                         >
                           <span className="text-sm font-medium text-black pr-4">{faq.question}</span>
                           <span
-                            className={`material-symbols-outlined text-black/40 transition-transform duration-300 flex-shrink-0 ${
+                            className={`material-symbols-outlined text-green-600/40 transition-transform duration-300 flex-shrink-0 ${
                               isOpen ? 'rotate-180' : ''
                             }`}
                           >
@@ -166,8 +166,8 @@ export default function FAQPage() {
                           </span>
                         </button>
                         {isOpen && (
-                          <div className="px-4 py-3 border-t border-black/5">
-                            <p className="text-xs text-black/60 leading-relaxed">{faq.answer}</p>
+                          <div className="px-4 py-3 border-t border-green-600/5">
+                            <p className="text-xs text-green-600 leading-relaxed">{faq.answer}</p>
                           </div>
                         )}
                       </div>
@@ -178,7 +178,7 @@ export default function FAQPage() {
             ))}
           </div>
 
-          <div className="mt-12 text-center bg-black/95 backdrop-blur-sm text-white p-8 rounded-lg">
+          <div className="mt-12 text-center bg-green-600/95 backdrop-blur-sm text-white p-8 rounded-lg">
             <h2 className="text-xl font-light mb-2">Still have questions?</h2>
             <p className="text-white/70 mb-4 text-sm">Can&apos;t find the answer you&apos;re looking for? Please reach out to our support team.</p>
             <a

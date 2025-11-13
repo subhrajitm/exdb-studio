@@ -200,7 +200,7 @@ export default function Hero() {
   return (
     <main
       ref={mainRef}
-      className="relative flex flex-col items-center justify-center text-center min-h-screen px-4 border-b border-black/5 overflow-hidden"
+      className="relative flex flex-col items-center justify-center text-center min-h-screen px-4 border-b border-green-600/5 overflow-hidden"
     >
       <div className="line-grid"></div>
       <div className="cell-lines" ref={cellLinesRef}></div>
@@ -221,20 +221,20 @@ export default function Hero() {
           From Excel to<br />
           <span className="font-bold">Insights — Instantly</span>
         </h1>
-        <p className="text-base sm:text-lg text-black/60 max-w-2xl mx-auto mb-8 leading-relaxed">
+        <p className="text-base sm:text-lg text-green-600 max-w-2xl mx-auto mb-8 leading-relaxed">
           Transform spreadsheets into databases, AI insights, and presentations.<br />
           No coding required.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <a
-            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 rounded-lg shadow-sm hover:shadow-md"
+            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition-all duration-300 rounded-lg shadow-sm hover:shadow-md"
             href="#"
           >
             Try Free Now
             <span className="material-symbols-outlined text-base ml-1.5">arrow_forward</span>
           </a>
           <a
-            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-black/70 border border-black/20 hover:border-black/40 hover:bg-black/5 hover:text-black transition-all duration-300 rounded-lg"
+            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-green-700 border border-green-600/20 hover:border-green-600/40 hover:bg-green-600/5 hover:text-green-700 transition-all duration-300 rounded-lg"
             href="#"
           >
             <span className="material-symbols-outlined text-base mr-1.5">play_circle</span>
