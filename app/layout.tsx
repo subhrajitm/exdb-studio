@@ -20,7 +20,7 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: 'Exdata Studio - From Excel to Insights — Instantly.',
-  description: 'DataFlow Studio helps you import Excel files into databases, explore data, perform AI research, and generate presentations instantly — all in one platform.',
+  description: 'Exdata Studio helps you import Excel files into databases, explore data, perform AI research, and generate presentations instantly — all in one platform.',
 }
 
 export default function RootLayout({
