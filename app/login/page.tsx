@@ -32,8 +32,8 @@ export default function LoginPage() {
         return
       }
 
-      // Redirect to upload page after successful login
-      router.push('/upload')
+      // Redirect to dashboard after successful login
+      router.push('/dashboard')
       router.refresh()
     } catch (err) {
       setError('An unexpected error occurred')
@@ -44,7 +44,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-white">
       <Header />
-      <div className="flex items-center justify-center min-h-screen px-4 pt-16 pb-8">
+      <div className="flex items-center justify-center min-h-screen px-4 pt-20 pb-8">
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
             <h1 className="text-2xl font-light text-black tracking-tight mb-1">

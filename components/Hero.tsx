@@ -200,7 +200,7 @@ export default function Hero() {
   return (
     <main
       ref={mainRef}
-      className="relative flex flex-col items-center justify-center text-center min-h-screen px-4 border-b border-black/5 overflow-hidden"
+      className="relative flex flex-col items-center justify-center text-center min-h-screen px-4 pt-20 border-b border-black/5 overflow-hidden"
     >
       <div className="line-grid"></div>
       <div className="cell-lines" ref={cellLinesRef}></div>

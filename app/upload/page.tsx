@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase/client'
+import * as XLSX from 'xlsx'
+import Papa from 'papaparse'
 
 interface FileWithPreview extends File {
   preview?: string
@@ -17,7 +19,6 @@ export default function UploadPage() {
   const [selectedFile, setSelectedFile] = useState<FileWithPreview | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
-  const [isUploaded, setIsUploaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
@@ -53,7 +54,6 @@ export default function UploadPage() {
 
   const handleFileSelect = useCallback((file: File) => {
     setSelectedFile(file)
-    setIsUploaded(false)
     setUploadProgress(0)
   }, [])
 
@@ -84,6 +84,68 @@ export default function UploadPage() {
     }
   }
 
+  const parseFile = async (file: File): Promise<{ headers: string[]; rows: (string | number)[][] }> => {
+    const extension = file.name.split('.').pop()?.toLowerCase()
+
+    if (extension === 'csv') {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          try {
+            const text = e.target?.result as string
+            Papa.parse(text, {
+              header: false,
+              skipEmptyLines: true,
+              complete: (results) => {
+                const rows = results.data as (string | number)[][]
+                if (rows.length === 0) {
+                  reject(new Error('CSV file is empty'))
+                  return
+                }
+                const headers = rows[0] as string[]
+                const dataRows = rows.slice(1)
+                resolve({ headers, rows: dataRows })
+              },
+              error: (error) => reject(error),
+            })
+          } catch (err) {
+            reject(err)
+          }
+        }
+        reader.onerror = () => reject(new Error('Failed to read CSV file'))
+        reader.readAsText(file)
+      })
+    } else if (extension === 'xlsx' || extension === 'xls') {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          try {
+            const data = e.target?.result
+            const workbook = XLSX.read(data, { type: 'binary' })
+            const firstSheetName = workbook.SheetNames[0]
+            const worksheet = workbook.Sheets[firstSheetName]
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
+
+            if (jsonData.length === 0) {
+              reject(new Error('Excel file is empty'))
+              return
+            }
+
+            const headers = (jsonData[0] as any[]).map((h) => String(h || ''))
+            const rows = jsonData.slice(1) as (string | number)[][]
+            resolve({ headers, rows })
+          } catch (err) {
+            reject(err)
+          }
+        }
+        reader.onerror = () => reject(new Error('Failed to read Excel file'))
+        reader.readAsArrayBuffer(file)
+      })
+    } else {
+      throw new Error('Unsupported file type. Please upload CSV or Excel files.')
+    }
+  }
+
   const handleUpload = async () => {
     if (!selectedFile || !user) return
 
@@ -92,27 +154,53 @@ export default function UploadPage() {
     setError(null)
 
     try {
+      // Parse file first to validate and get preview data
+      setUploadProgress(20)
+      const parsedData = await parseFile(selectedFile)
+
       // Create a unique file path
       const fileExt = selectedFile.name.split('.').pop()
       const fileName = `${user.id}/${Date.now()}.${fileExt}`
       const filePath = `uploads/${fileName}`
 
-      // Upload file to Supabase Storage
+      setUploadProgress(40)
+
+      // Upload file to Supabase Storage with metadata
       const { error: uploadError, data } = await supabase.storage
         .from('files')
         .upload(filePath, selectedFile, {
           cacheControl: '3600',
           upsert: false,
+          contentType: selectedFile.type,
+          metadata: {
+            originalName: selectedFile.name,
+            uploadedAt: new Date().toISOString(),
+          },
         })
 
       if (uploadError) {
         throw uploadError
       }
 
-      // Simulate progress for better UX
+      setUploadProgress(80)
+
+      // Prepare preview data
+      const previewData = {
+        headers: parsedData.headers,
+        rows: parsedData.rows,
+        fileName: selectedFile.name,
+        fileType: selectedFile.type,
+        rowCount: parsedData.rows.length,
+      }
+
+      // Store preview data in sessionStorage
+      sessionStorage.setItem('previewData', JSON.stringify(previewData))
+
       setUploadProgress(100)
       setIsUploading(false)
-      setIsUploaded(true)
+
+      // Navigate to preview page
+      router.push('/preview')
 
       // Optionally, you can save file metadata to database here
       // await supabase.from('files').insert({
@@ -123,7 +211,14 @@ export default function UploadPage() {
       //   file_type: selectedFile.type,
       // })
     } catch (err: any) {
-      setError(err.message || 'Failed to upload file')
+      let errorMessage = err.message || 'Failed to upload file'
+      
+      // Provide helpful error message for bucket not found
+      if (err.message?.includes('Bucket not found') || err.message?.includes('bucket')?.toLowerCase().includes('not found')) {
+        errorMessage = 'Storage bucket "files" not found. Please create a bucket named "files" in your Supabase Storage dashboard. See SUPABASE_SETUP.md for instructions.'
+      }
+      
+      setError(errorMessage)
       setIsUploading(false)
       setUploadProgress(0)
     }
@@ -131,7 +226,6 @@ export default function UploadPage() {
 
   const handleRemoveFile = () => {
     setSelectedFile(null)
-    setIsUploaded(false)
     setUploadProgress(0)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -159,7 +253,7 @@ export default function UploadPage() {
   return (
     <div className="min-h-screen bg-white">
       <Header />
-      <div className="flex items-center justify-center min-h-screen px-4 pt-12 pb-6">
+      <div className="flex items-center justify-center min-h-screen px-4 pt-20 pb-6">
         <div className="w-full max-w-xl">
           {/* Header Section */}
           <div className="text-center mb-4">
@@ -270,23 +364,15 @@ export default function UploadPage() {
                   </div>
                 )}
 
-                {/* Success State */}
-                {isUploaded && (
-                  <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                    <span className="material-symbols-outlined text-sm text-green-600">check_circle</span>
-                    <span className="text-xs text-green-700">File uploaded successfully!</span>
-                  </div>
-                )}
-
                 {/* Action Buttons */}
-                {!isUploading && !isUploaded && (
+                {!isUploading && (
                   <div className="flex items-center gap-2 pt-1">
                     <button
                       type="button"
                       onClick={handleUpload}
                       className="flex-1 px-4 py-2 text-xs font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 rounded-lg shadow-sm hover:shadow-md"
                     >
-                      Upload File
+                      Upload & Preview
                     </button>
                     <button
                       type="button"
@@ -294,18 +380,6 @@ export default function UploadPage() {
                       className="px-4 py-2 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 rounded-lg"
                     >
                       Change
-                    </button>
-                  </div>
-                )}
-
-                {isUploaded && (
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={handleRemoveFile}
-                      className="flex-1 px-4 py-2 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 rounded-lg"
-                    >
-                      Upload Another File
                     </button>
                   </div>
                 )}

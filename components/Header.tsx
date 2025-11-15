@@ -62,6 +62,12 @@ export default function Header() {
               <>
                 <Link
                   className="px-3 py-1.5 text-xs font-medium text-black/70 hover:text-black hover:bg-black/5 transition-all duration-300 rounded-lg"
+                  href="/dashboard"
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  className="px-3 py-1.5 text-xs font-medium text-black/70 hover:text-black hover:bg-black/5 transition-all duration-300 rounded-lg"
                   href="/upload"
                 >
                   Upload
