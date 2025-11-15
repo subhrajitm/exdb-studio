@@ -30,8 +30,6 @@ export default function PreviewPage() {
   const [selectedRows, setSelectedRows] = useState<CompactSelection>(CompactSelection.empty())
   const [selectedColumn, setSelectedColumn] = useState<number | null>(null)
   const [gridWidth, setGridWidth] = useState(1200)
-  const [editableCell, setEditableCell] = useState<{ col: number; row: number } | null>(null)
-  const [lastClickCell, setLastClickCell] = useState<{ col: number; row: number; time: number } | null>(null)
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({})
   const [sortConfig, setSortConfig] = useState<{ column: number; direction: 'asc' | 'desc' } | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -359,19 +357,19 @@ export default function PreviewPage() {
     const cellValue = displayData.rows[row]?.[col]
     const displayValue = cellValue !== undefined && cellValue !== null ? String(cellValue) : ''
 
-    // Check if this cell is editable (was double-clicked)
-    const isEditable = editableCell !== null && editableCell.col === col && editableCell.row === row
-
     // Return cell configuration
-    // Note: readonly: false allows editing on double-click or Enter/F2
+    // Glide Data Grid's default behavior:
+    // - Single click: selects cell (when readonly: true or false)
+    // - Double click: opens editor (when readonly: false and allowOverlay: true)
+    // - Enter/F2: opens editor (when readonly: false)
     return {
       kind: 'text',
       data: displayValue,
       displayData: displayValue,
       allowOverlay: true,
-      readonly: !isEditable, // Only allow editing if double-clicked
+      readonly: false, // Allow editing - double-click will open editor naturally
     }
-  }, [getDisplayData, editableCell])
+  }, [getDisplayData])
 
   // Handle cell editing
   const onCellEdited = useCallback((cell: Item, newValue: EditableGridCell): void => {
@@ -415,49 +413,9 @@ export default function PreviewPage() {
         rows: newRows,
       })
       setHasChanges(true)
-      
-      // Make cell readonly again after editing
-      setEditableCell(null)
     }
   }, [previewData, getDisplayData, getAllFilteredData, searchQuery, sortConfig, currentPage, rowsPerPage])
 
-  // Handle cell click for double-click detection
-  const handleCellClick = useCallback((cell: Item, event: any) => {
-    const [col, row] = cell
-    
-    // Skip if clicking on header rows (negative row indices)
-    if (row < 0) return
-    
-    // Check if this is a double-click using event detail
-    if (event && (event.detail === 2 || (event as MouseEvent).detail === 2)) {
-      // Double-click detected - make cell editable immediately
-      setEditableCell({ col, row })
-      setLastClickCell(null)
-      // Don't prevent default - let Glide Data Grid handle the edit
-      return
-    }
-    
-    const currentTime = Date.now()
-    
-    // Fallback: Check if this is a double-click (same cell clicked within 500ms)
-    if (
-      lastClickCell &&
-      lastClickCell.col === col &&
-      lastClickCell.row === row &&
-      currentTime - lastClickCell.time < 500
-    ) {
-      // Double-click detected - make cell editable
-      setEditableCell({ col, row })
-      setLastClickCell(null)
-    } else {
-      // Store click info for double-click detection
-      setLastClickCell({ col, row, time: currentTime })
-      // Clear other editable cells on single click
-      if (editableCell && (editableCell.col !== col || editableCell.row !== row)) {
-        setEditableCell(null)
-      }
-    }
-  }, [lastClickCell, editableCell])
 
   // Handle adding new row
   const handleAddRow = () => {
@@ -993,8 +951,6 @@ export default function PreviewPage() {
                     columns={columns}
                     rows={numRows}
                     onCellEdited={onCellEdited}
-                    onCellClicked={handleCellClick}
-                    onCellActivated={handleCellClick}
                     rowSelect="multi"
                     onRowSelectionChange={setSelectedRows}
                     rowSelection={selectedRows}

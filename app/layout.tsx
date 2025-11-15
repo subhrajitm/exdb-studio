@@ -38,6 +38,7 @@ export default function RootLayout({
         <AuthProvider>
           {children}
         </AuthProvider>
+        <div id="portal" />
       </body>
     </html>
   )
