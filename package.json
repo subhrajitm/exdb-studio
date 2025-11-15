@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@glideapps/glide-data-grid": "^6.0.3",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.81.1",
     "@types/papaparse": "^5.5.0",

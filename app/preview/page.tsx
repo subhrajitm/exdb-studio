@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Header from '@/components/Header'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase/client'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
+import { DataEditor, GridCell, GridColumn, Item, EditableGridCell, CompactSelection } from '@glideapps/glide-data-grid'
+import '@glideapps/glide-data-grid/dist/index.css'
 
 interface PreviewData {
   headers: string[]
@@ -23,16 +25,19 @@ export default function PreviewPage() {
   const [previewData, setPreviewData] = useState<PreviewData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null)
-  const [editingHeader, setEditingHeader] = useState<number | null>(null)
-  const [cellValue, setCellValue] = useState<string>('')
-  const [headerValue, setHeaderValue] = useState<string>('')
   const [hasChanges, setHasChanges] = useState(false)
-  const rowsPerPage = 10
+  const [selectedRows, setSelectedRows] = useState<CompactSelection>(CompactSelection.empty())
+  const [gridWidth, setGridWidth] = useState(1200)
   const supabase = createClient()
-  const cellInputRef = useRef<HTMLInputElement>(null)
-  const headerInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const updateWidth = () => {
+      setGridWidth(Math.max(800, window.innerWidth - 100))
+    }
+    updateWidth()
+    window.addEventListener('resize', updateWidth)
+    return () => window.removeEventListener('resize', updateWidth)
+  }, [])
 
   useEffect(() => {
     if (!loading && !user) {
@@ -72,20 +77,6 @@ export default function PreviewPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user?.id])
-
-  useEffect(() => {
-    if (editingCell && cellInputRef.current) {
-      cellInputRef.current.focus()
-      cellInputRef.current.select()
-    }
-  }, [editingCell])
-
-  useEffect(() => {
-    if (editingHeader !== null && headerInputRef.current) {
-      headerInputRef.current.focus()
-      headerInputRef.current.select()
-    }
-  }, [editingHeader])
 
   const loadAndParseFile = async (filePath: string, fileName: string, fileType: string) => {
     try {
@@ -198,81 +189,66 @@ export default function PreviewPage() {
     })
   }
 
-  // CRUD Operations
+  // Convert headers to GridColumn format
+  const getColumns = (): GridColumn[] => {
+    if (!previewData) return []
+    
+    return previewData.headers.map((header, index) => ({
+      title: header || `Column ${index + 1}`,
+      id: `col-${index}`,
+      width: 150,
+    }))
+  }
 
-  const handleCellClick = (rowIndex: number, colIndex: number) => {
+  // Get cell content for Glide Data Grid
+  const getCellContent = useCallback((cell: Item): GridCell => {
+    const [col, row] = cell
+
+    if (!previewData) {
+      return {
+        kind: 'text',
+        data: '',
+        displayData: '',
+        allowOverlay: true,
+      }
+    }
+
+    // Data cells (Glide Data Grid handles headers automatically via columns)
+    const cellValue = previewData.rows[row]?.[col]
+    const displayValue = cellValue !== undefined && cellValue !== null ? String(cellValue) : ''
+
+    return {
+      kind: 'text',
+      data: displayValue,
+      displayData: displayValue,
+      allowOverlay: true,
+      readonly: false,
+    }
+  }, [previewData])
+
+  // Handle cell editing
+  const onCellEdited = useCallback((cell: Item, newValue: EditableGridCell): void => {
     if (!previewData) return
-    const actualRowIndex = startIndex + rowIndex
-    setCellValue(String(previewData.rows[actualRowIndex]?.[colIndex] ?? ''))
-    setEditingCell({ row: actualRowIndex, col: colIndex })
-  }
 
-  const handleCellSave = () => {
-    if (!previewData || !editingCell) return
+    const [col, row] = cell
 
-    const newRows = [...previewData.rows]
-    if (!newRows[editingCell.row]) {
-      newRows[editingCell.row] = new Array(previewData.headers.length).fill('')
+    // Editing data cell
+    if (row >= 0 && newValue.kind === 'text') {
+      const newRows = [...previewData.rows]
+      if (!newRows[row]) {
+        newRows[row] = new Array(previewData.headers.length).fill('')
+      }
+      newRows[row][col] = newValue.data
+
+      setPreviewData({
+        ...previewData,
+        rows: newRows,
+      })
+      setHasChanges(true)
     }
-    newRows[editingCell.row][editingCell.col] = cellValue
+  }, [previewData])
 
-    setPreviewData({
-      ...previewData,
-      rows: newRows,
-      rowCount: newRows.length,
-    })
-    setEditingCell(null)
-    setCellValue('')
-    setHasChanges(true)
-  }
-
-  const handleCellCancel = () => {
-    setEditingCell(null)
-    setCellValue('')
-  }
-
-  const handleCellKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleCellSave()
-    } else if (e.key === 'Escape') {
-      handleCellCancel()
-    }
-  }
-
-  const handleHeaderClick = (colIndex: number) => {
-    if (!previewData) return
-    setHeaderValue(previewData.headers[colIndex] || '')
-    setEditingHeader(colIndex)
-  }
-
-  const handleHeaderSave = () => {
-    if (!previewData || editingHeader === null) return
-
-    const newHeaders = [...previewData.headers]
-    newHeaders[editingHeader] = headerValue || `Column ${editingHeader + 1}`
-
-    setPreviewData({
-      ...previewData,
-      headers: newHeaders,
-    })
-    setEditingHeader(null)
-    setHeaderValue('')
-    setHasChanges(true)
-  }
-
-  const handleHeaderCancel = () => {
-    setEditingHeader(null)
-    setHeaderValue('')
-  }
-
-  const handleHeaderKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleHeaderSave()
-    } else if (e.key === 'Escape') {
-      handleHeaderCancel()
-    }
-  }
-
+  // Handle adding new row
   const handleAddRow = () => {
     if (!previewData) return
 
@@ -287,27 +263,28 @@ export default function PreviewPage() {
     setHasChanges(true)
   }
 
-  const handleDeleteRow = (rowIndex: number) => {
-    if (!previewData) return
+  // Handle deleting selected rows
+  const handleDeleteRows = () => {
+    if (!previewData || selectedRows.length === 0) return
 
-    if (confirm('Are you sure you want to delete this row?')) {
-      const actualRowIndex = startIndex + rowIndex
-      const newRows = previewData.rows.filter((_, idx) => idx !== actualRowIndex)
+    if (confirm(`Are you sure you want to delete ${selectedRows.length} row(s)?`)) {
+      const indicesToDelete = Array.from(selectedRows)
+        .filter(idx => idx >= 0 && idx < previewData.rows.length)
+        .sort((a, b) => b - a) // Sort descending to delete from end first
+
+      const newRows = previewData.rows.filter((_, idx) => !indicesToDelete.includes(idx))
 
       setPreviewData({
         ...previewData,
         rows: newRows,
         rowCount: newRows.length,
       })
+      setSelectedRows(CompactSelection.empty())
       setHasChanges(true)
-
-      // Adjust page if needed
-      if (newRows.length > 0 && currentPage > Math.ceil(newRows.length / rowsPerPage)) {
-        setCurrentPage(Math.ceil(newRows.length / rowsPerPage))
-      }
     }
   }
 
+  // Handle adding new column
   const handleAddColumn = () => {
     if (!previewData) return
 
@@ -323,6 +300,7 @@ export default function PreviewPage() {
     setHasChanges(true)
   }
 
+  // Handle deleting selected column
   const handleDeleteColumn = (colIndex: number) => {
     if (!previewData) return
 
@@ -341,10 +319,10 @@ export default function PreviewPage() {
         rows: newRows,
       })
       setHasChanges(true)
-      setEditingCell(null)
     }
   }
 
+  // Handle save changes
   const handleSaveChanges = () => {
     if (!previewData) return
 
@@ -355,13 +333,11 @@ export default function PreviewPage() {
       let filename: string
 
       if (extension === 'csv') {
-        // Convert to CSV
         const csvRows = [
           previewData.headers.join(','),
           ...previewData.rows.map((row) =>
             row.map((cell) => {
               const cellStr = String(cell ?? '')
-              // Escape commas and quotes
               if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
                 return `"${cellStr.replace(/"/g, '""')}"`
               }
@@ -374,7 +350,6 @@ export default function PreviewPage() {
         mimeType = 'text/csv'
         filename = previewData.fileName.replace(/\.[^/.]+$/, '_edited.csv')
       } else {
-        // Convert to Excel
         const wb = XLSX.utils.book_new()
         const ws = XLSX.utils.aoa_to_sheet([
           previewData.headers,
@@ -385,12 +360,10 @@ export default function PreviewPage() {
         blob = new Blob([excelBuffer], {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
-        mimeType =
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         filename = previewData.fileName.replace(/\.[^/.]+$/, '_edited.xlsx')
       }
 
-      // Download the file
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -408,11 +381,6 @@ export default function PreviewPage() {
     }
   }
 
-  const totalPages = previewData ? Math.ceil(previewData.rowCount / rowsPerPage) : 1
-  const startIndex = (currentPage - 1) * rowsPerPage
-  const endIndex = startIndex + rowsPerPage
-  const currentRows = previewData?.rows.slice(startIndex, endIndex) || []
-
   if (loading || isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -427,11 +395,14 @@ export default function PreviewPage() {
     return null
   }
 
+  const columns = getColumns()
+  const numRows = previewData?.rowCount || 0
+
   return (
     <div className="min-h-screen bg-white">
       <Header />
       <div className="pt-20 pb-6 px-4">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-full mx-auto">
           {/* Header */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -498,6 +469,15 @@ export default function PreviewPage() {
                   <span className="material-symbols-outlined text-sm">add</span>
                   Add Column
                 </button>
+                {selectedRows.length > 0 && (
+                  <button
+                    onClick={handleDeleteRows}
+                    className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-all duration-300 rounded-lg flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-sm">delete</span>
+                    Delete {selectedRows.length} Row(s)
+                  </button>
+                )}
                 {hasChanges && (
                   <span className="text-xs text-orange-600 flex items-center gap-1">
                     <span className="material-symbols-outlined text-sm">edit</span>
@@ -506,165 +486,61 @@ export default function PreviewPage() {
                 )}
               </div>
 
-              {/* Table Container */}
-              <div className="bg-white border border-black/10 rounded-lg overflow-hidden shadow-sm">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-black/5 border-b border-black/10">
-                      <tr>
-                        <th className="px-2 py-2 text-center font-medium text-black/80 w-12">
-                          Actions
-                        </th>
-                        {previewData.headers.map((header, index) => (
-                          <th
-                            key={index}
-                            className="px-4 py-3 text-left font-medium text-black/80 whitespace-nowrap relative group"
-                          >
-                            {editingHeader === index ? (
-                              <input
-                                ref={headerInputRef}
-                                type="text"
-                                value={headerValue}
-                                onChange={(e) => setHeaderValue(e.target.value)}
-                                onBlur={handleHeaderSave}
-                                onKeyDown={handleHeaderKeyDown}
-                                className="w-full px-2 py-1 border border-black/30 rounded bg-white focus:outline-none focus:border-black/60"
-                              />
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span
-                                  onClick={() => handleHeaderClick(index)}
-                                  className="cursor-pointer hover:text-black flex-1"
-                                  title="Click to edit"
-                                >
-                                  {header || `Column ${index + 1}`}
-                                </span>
-                                <button
-                                  onClick={() => handleDeleteColumn(index)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded"
-                                  title="Delete column"
-                                >
-                                  <span className="material-symbols-outlined text-sm text-red-600">
-                                    delete
-                                  </span>
-                                </button>
-                              </div>
-                            )}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-black/5">
-                      {currentRows.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={previewData.headers.length + 1}
-                            className="px-4 py-8 text-center text-black/50"
-                          >
-                            No data to display. Click "Add Row" to add data.
-                          </td>
-                        </tr>
-                      ) : (
-                        currentRows.map((row, rowIndex) => {
-                          const actualRowIndex = startIndex + rowIndex
-                          const isEditing =
-                            editingCell?.row === actualRowIndex
-                          return (
-                            <tr
-                              key={actualRowIndex}
-                              className="hover:bg-black/5 transition-colors"
-                            >
-                              <td className="px-2 py-2 text-center">
-                                <button
-                                  onClick={() => handleDeleteRow(rowIndex)}
-                                  className="p-1 hover:bg-red-100 rounded transition-colors"
-                                  title="Delete row"
-                                >
-                                  <span className="material-symbols-outlined text-sm text-red-600">
-                                    delete
-                                  </span>
-                                </button>
-                              </td>
-                              {previewData.headers.map((_, colIndex) => {
-                                const isCellEditing =
-                                  isEditing &&
-                                  editingCell?.col === colIndex
-                                return (
-                                  <td
-                                    key={colIndex}
-                                    className="px-4 py-2 text-black/70 whitespace-nowrap"
-                                  >
-                                    {isCellEditing ? (
-                                      <input
-                                        ref={cellInputRef}
-                                        type="text"
-                                        value={cellValue}
-                                        onChange={(e) =>
-                                          setCellValue(e.target.value)
-                                        }
-                                        onBlur={handleCellSave}
-                                        onKeyDown={handleCellKeyDown}
-                                        className="w-full px-2 py-1 border border-black/30 rounded bg-white focus:outline-none focus:border-black/60"
-                                      />
-                                    ) : (
-                                      <span
-                                        onClick={() =>
-                                          handleCellClick(rowIndex, colIndex)
-                                        }
-                                        className="cursor-pointer hover:bg-black/10 px-2 py-1 rounded block"
-                                        title="Click to edit"
-                                      >
-                                        {row[colIndex] !== undefined &&
-                                        row[colIndex] !== null
-                                          ? String(row[colIndex])
-                                          : ''}
-                                      </span>
-                                    )}
-                                  </td>
-                                )
-                              })}
-                            </tr>
-                          )
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+              {/* Glide Data Grid */}
+              <div className="border border-black/10 rounded-lg overflow-hidden shadow-sm bg-white">
+                <DataEditor
+                  getCellContent={getCellContent}
+                  columns={columns}
+                  rows={numRows}
+                  onCellEdited={onCellEdited}
+                  rowSelect="multi"
+                  onRowSelectionChange={setSelectedRows}
+                  rowSelection={selectedRows}
+                  getCellsForSelection={true}
+                  keybindings={{
+                    delete: true,
+                    copy: true,
+                    paste: true,
+                    selectAll: true,
+                  }}
+                  theme={{
+                    accentColor: '#000000',
+                    accentFg: '#ffffff',
+                    accentLight: '#f5f5f5',
+                    textDark: '#000000',
+                    textMedium: '#666666',
+                    textLight: '#999999',
+                    textBubble: '#000000',
+                    bgIconHeader: '#666666',
+                    fgIconHeader: '#ffffff',
+                    textHeader: '#000000',
+                    textHeaderSelected: '#000000',
+                    bgCell: '#ffffff',
+                    bgCellMedium: '#fafafa',
+                    bgHeader: '#f5f5f5',
+                    bgHeaderHasFocus: '#e5e5e5',
+                    bgHeaderHovered: '#e5e5e5',
+                    bgBubble: '#ffffff',
+                    bgBubbleSelected: '#f5f5f5',
+                    bgSearchResult: '#fff3cd',
+                    borderColor: '#e0e0e0',
+                    drilldownBorder: '#000000',
+                    linkColor: '#000000',
+                    headerFontStyle: '600 12px',
+                    baseFontStyle: '12px',
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    editorFontSize: '12px',
+                    lineHeight: 1.5,
+                  }}
+                  smoothScrollX={true}
+                  smoothScrollY={true}
+                  overscrollX={0}
+                  overscrollY={0}
+                  onDelete={selectedRows.length > 0 ? handleDeleteRows : undefined}
+                  width={gridWidth}
+                  height={600}
+                />
               </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <div className="text-xs text-black/60">
-                    Showing {startIndex + 1} to{' '}
-                    {Math.min(endIndex, previewData.rowCount)} of{' '}
-                    {previewData.rowCount.toLocaleString()} rows
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() =>
-                        setCurrentPage((p) => Math.max(1, p - 1))
-                      }
-                      disabled={currentPage === 1}
-                      className="px-3 py-1.5 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    <span className="text-xs text-black/60">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setCurrentPage((p) => Math.min(totalPages, p + 1))
-                      }
-                      disabled={currentPage === totalPages}
-                      className="px-3 py-1.5 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>
