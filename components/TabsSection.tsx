@@ -22,7 +22,7 @@ export default function TabsSection() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`tab-btn px-4 py-2 text-xs font-medium text-black/70 border-b-2 md:border-b-0 md:border-r-2 transition-all duration-300 rounded-t-lg md:rounded-t-none md:rounded-l-lg whitespace-nowrap text-left ${
+                className={`tab-btn px-4 py-2 text-xs font-medium text-black/70 border-b-2 md:border-b-0 md:border-r-2 transition-all duration-300 whitespace-nowrap text-left ${
                   activeTab === tab.id
                     ? 'active border-black opacity-100'
                     : 'border-transparent hover:text-black hover:border-black/20'
@@ -112,7 +112,7 @@ export default function TabsSection() {
                     (integration, index) => (
                       <div
                         key={index}
-                        className="text-center border border-black/5 p-4 rounded-lg hover:border-black/20 hover:shadow-sm transition-all duration-300 bg-white/30"
+                        className="text-center border border-black/5 p-4 hover:border-black/20 hover:shadow-sm transition-all duration-300 bg-white/30"
                       >
                         <span className="text-sm font-medium text-black/70">{integration}</span>
                       </div>
@@ -123,7 +123,7 @@ export default function TabsSection() {
             )}
 
             {activeTab === 'testimonials' && (
-              <div className="tab-panel active bg-black/95 backdrop-blur-sm text-white p-8 -mx-4 rounded-lg shadow-lg" id="testimonials-panel">
+              <div className="tab-panel active bg-black/95 backdrop-blur-sm text-white p-8 -mx-4 shadow-lg" id="testimonials-panel">
                 <div className="max-w-6xl mx-auto">
                   <p className="text-sm text-white/70 mb-8 text-center">4.9 ★ from 120+ teams worldwide</p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -146,7 +146,7 @@ export default function TabsSection() {
                     ].map((testimonial, index) => (
                       <div
                         key={index}
-                        className="border border-white/10 p-6 rounded-lg hover:border-white/20 hover:bg-white/5 transition-all duration-300"
+                        className="border border-white/10 p-6 hover:border-white/20 hover:bg-white/5 transition-all duration-300"
                       >
                         <p className="text-sm text-white/70 mb-4 leading-relaxed">{testimonial.text}</p>
                         <div>
@@ -198,7 +198,7 @@ export default function TabsSection() {
                   ].map((plan, index) => (
                     <div
                       key={index}
-                      className={`border p-6 rounded-lg hover:border-black/20 hover:shadow-md transition-all duration-300 ${
+                      className={`border p-6 hover:border-black/20 hover:shadow-md transition-all duration-300 ${
                         plan.highlighted
                           ? 'border-black/20 bg-white/50 shadow-sm'
                           : 'border-black/5 bg-white/30'
@@ -215,7 +215,7 @@ export default function TabsSection() {
                         ))}
                       </ul>
                       <a
-                        className={`block w-full text-center px-4 py-2 text-sm font-medium transition-all duration-300 rounded-lg shadow-sm hover:shadow-md ${
+                        className={`block w-full text-center px-4 py-2 text-sm font-medium transition-all duration-300 shadow-sm hover:shadow-md ${
                           plan.highlighted || plan.name === 'Free'
                             ? 'text-white bg-black hover:bg-black/90'
                             : 'text-black/70 border border-black/20 hover:bg-black/5 hover:border-black/40 hover:text-black'

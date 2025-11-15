@@ -276,7 +276,7 @@ export default function UploadPage() {
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200">
               <p className="text-xs text-red-700">{error}</p>
             </div>
           )}
@@ -286,7 +286,7 @@ export default function UploadPage() {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`relative border-2 border-dashed rounded-lg p-4 transition-all duration-300 ${
+            className={`relative border-2 border-dashed p-4 transition-all duration-300 ${
               isDragging
                 ? 'border-black bg-black/5 scale-[1.01]'
                 : 'border-black/20 hover:border-black/40 bg-white'
@@ -302,7 +302,7 @@ export default function UploadPage() {
 
             {!selectedFile ? (
               <div className="text-center py-4">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-black/5 mb-3">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-black/5 mb-3">
                   <span className="material-symbols-outlined text-2xl text-black/60">
                     cloud_upload
                   </span>
@@ -316,7 +316,7 @@ export default function UploadPage() {
                 <button
                   type="button"
                   onClick={handleBrowseClick}
-                  className="px-5 py-2 text-xs font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 rounded-lg shadow-sm hover:shadow-md"
+                  className="px-5 py-2 text-xs font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 shadow-sm hover:shadow-md"
                 >
                   Browse Files
                 </button>
@@ -324,7 +324,7 @@ export default function UploadPage() {
             ) : (
               <div className="space-y-3">
                 {/* File Preview */}
-                <div className="flex items-start gap-3 p-3 bg-black/5 rounded-lg">
+                <div className="flex items-start gap-3 p-3 bg-black/5 border border-black/10">
                   <div className="flex-shrink-0 text-3xl">{getFileIcon(selectedFile.name)}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-0.5">
@@ -355,9 +355,9 @@ export default function UploadPage() {
                       <span>Uploading...</span>
                       <span>{uploadProgress}%</span>
                     </div>
-                    <div className="w-full h-1.5 bg-black/10 rounded-full overflow-hidden">
+                    <div className="w-full h-1.5 bg-black/10 overflow-hidden">
                       <div
-                        className="h-full bg-black transition-all duration-300 ease-out rounded-full"
+                        className="h-full bg-black transition-all duration-300 ease-out"
                         style={{ width: `${uploadProgress}%` }}
                       />
                     </div>
@@ -370,14 +370,14 @@ export default function UploadPage() {
                     <button
                       type="button"
                       onClick={handleUpload}
-                      className="flex-1 px-4 py-2 text-xs font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 rounded-lg shadow-sm hover:shadow-md"
+                      className="flex-1 px-4 py-2 text-xs font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 shadow-sm hover:shadow-md"
                     >
                       Upload & Preview
                     </button>
                     <button
                       type="button"
                       onClick={handleBrowseClick}
-                      className="px-4 py-2 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 rounded-lg"
+                      className="px-4 py-2 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300"
                     >
                       Change
                     </button>
@@ -389,7 +389,7 @@ export default function UploadPage() {
 
           {/* Info Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
-            <div className="p-3 bg-black/5 rounded-lg border border-black/10">
+            <div className="p-3 bg-black/5 border border-black/10">
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="material-symbols-outlined text-sm text-black/70">security</span>
                 <h4 className="text-xs font-medium text-black/80">Secure Upload</h4>
@@ -398,7 +398,7 @@ export default function UploadPage() {
                 Your files are encrypted and processed securely
               </p>
             </div>
-            <div className="p-3 bg-black/5 rounded-lg border border-black/10">
+            <div className="p-3 bg-black/5 border border-black/10">
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="material-symbols-outlined text-sm text-black/70">speed</span>
                 <h4 className="text-xs font-medium text-black/80">Fast Processing</h4>
@@ -407,7 +407,7 @@ export default function UploadPage() {
                 Quick conversion and analysis of your data
               </p>
             </div>
-            <div className="p-3 bg-black/5 rounded-lg border border-black/10">
+            <div className="p-3 bg-black/5 border border-black/10">
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="material-symbols-outlined text-sm text-black/70">auto_awesome</span>
                 <h4 className="text-xs font-medium text-black/80">Smart Detection</h4>

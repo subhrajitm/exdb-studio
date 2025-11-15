@@ -150,7 +150,7 @@ export default function FAQPage() {
                     return (
                       <div
                         key={questionIndex}
-                        className="border border-black/5 rounded-lg bg-white/30 overflow-hidden"
+                        className="border border-black/5 bg-white/30 overflow-hidden"
                       >
                         <button
                           onClick={() => toggleQuestion(categoryIndex, questionIndex)}
@@ -178,12 +178,12 @@ export default function FAQPage() {
             ))}
           </div>
 
-          <div className="mt-12 text-center bg-black/95 backdrop-blur-sm text-white p-8 rounded-lg">
+          <div className="mt-12 text-center bg-black/95 backdrop-blur-sm text-white p-8">
             <h2 className="text-xl font-light mb-2">Still have questions?</h2>
             <p className="text-white/70 mb-4 text-sm">Can&apos;t find the answer you&apos;re looking for? Please reach out to our support team.</p>
             <a
               href="/contact"
-              className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all duration-300 rounded-lg"
+              className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all duration-300"
             >
               Contact Support
               <span className="material-symbols-outlined text-base ml-1.5">arrow_forward</span>

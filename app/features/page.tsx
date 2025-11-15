@@ -88,7 +88,7 @@ export default function FeaturesPage() {
                 className={`flex flex-col ${index % 2 === 0 ? 'lg:flex-row' : 'lg:flex-row-reverse'} gap-6 items-center`}
               >
                 <div className="flex-1">
-                  <div className="w-12 h-12 rounded-lg border border-black/10 flex items-center justify-center mb-3 bg-black/5">
+                  <div className="w-12 h-12 border border-black/10 flex items-center justify-center mb-3 bg-black/5">
                     <span className="material-symbols-outlined text-xl text-black">
                       {feature.icon}
                     </span>
@@ -105,7 +105,7 @@ export default function FeaturesPage() {
                   </ul>
                 </div>
                 <div className="flex-1">
-                  <div className="border border-black/5 rounded-lg p-6 bg-white/30 h-48 flex items-center justify-center">
+                  <div className="border border-black/5 p-6 bg-white/30 h-48 flex items-center justify-center">
                     <span className="text-black/20 text-xs">Feature visualization</span>
                   </div>
                 </div>

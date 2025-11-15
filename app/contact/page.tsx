@@ -82,9 +82,9 @@ export default function ContactPage() {
               <a
                 key={index}
                 href={method.link}
-                className="border border-black/5 p-4 rounded-lg hover:border-black/20 hover:shadow-md transition-all duration-300 bg-white/50 text-center"
+                className="border border-black/5 p-4 hover:border-black/20 hover:shadow-md transition-all duration-300 bg-white/50 text-center"
               >
-                <div className="w-10 h-10 rounded-lg border border-black/10 flex items-center justify-center mx-auto mb-3 bg-black/5">
+                <div className="w-10 h-10 border border-black/10 flex items-center justify-center mx-auto mb-3 bg-black/5">
                   <span className="material-symbols-outlined text-lg text-black">{method.icon}</span>
                 </div>
                 <h3 className="text-base font-medium text-black mb-1">{method.title}</h3>
@@ -137,7 +137,7 @@ export default function ContactPage() {
                   value={formData.name}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-2.5 text-sm border border-black/10 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/20 transition-all duration-300"
+                  className="w-full px-4 py-2.5 text-sm border border-black/10 bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/20 transition-all duration-300"
                   placeholder="John Doe"
                 />
               </div>
@@ -153,7 +153,7 @@ export default function ContactPage() {
                   value={formData.email}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-2.5 text-sm border border-black/10 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/20 transition-all duration-300"
+                  className="w-full px-4 py-2.5 text-sm border border-black/10 bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/20 transition-all duration-300"
                   placeholder="you@example.com"
                 />
               </div>
@@ -168,7 +168,7 @@ export default function ContactPage() {
                   type="text"
                   value={formData.company}
                   onChange={handleChange}
-                  className="w-full px-4 py-2.5 text-sm border border-black/10 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/20 transition-all duration-300"
+                  className="w-full px-4 py-2.5 text-sm border border-black/10 bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/20 transition-all duration-300"
                   placeholder="Your Company"
                 />
               </div>
@@ -183,7 +183,7 @@ export default function ContactPage() {
                   value={formData.subject}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-2.5 text-sm border border-black/10 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/20 transition-all duration-300"
+                  className="w-full px-4 py-2.5 text-sm border border-black/10 bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/20 transition-all duration-300"
                 >
                   <option value="">Select a subject</option>
                   <option value="general">General Inquiry</option>
@@ -205,7 +205,7 @@ export default function ContactPage() {
                   onChange={handleChange}
                   required
                   rows={6}
-                  className="w-full px-4 py-2.5 text-sm border border-black/10 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/20 transition-all duration-300 resize-none"
+                  className="w-full px-4 py-2.5 text-sm border border-black/10 bg-white focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/20 transition-all duration-300 resize-none"
                   placeholder="Tell us how we can help..."
                 />
               </div>
@@ -213,7 +213,7 @@ export default function ContactPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full px-6 py-2.5 text-sm font-medium text-white bg-black hover:bg-black/90 disabled:bg-black/50 disabled:cursor-not-allowed transition-all duration-300 rounded-lg shadow-sm hover:shadow-md"
+                className="w-full px-6 py-2.5 text-sm font-medium text-white bg-black hover:bg-black/90 disabled:bg-black/50 disabled:cursor-not-allowed transition-all duration-300 shadow-sm hover:shadow-md"
               >
                 {isLoading ? 'Sending...' : 'Send Message'}
               </button>

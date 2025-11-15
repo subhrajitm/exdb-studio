@@ -62,9 +62,9 @@ export default function AboutPage() {
             {values.map((value, index) => (
               <div
                 key={index}
-                className="border border-black/5 p-5 rounded-lg hover:border-black/20 hover:shadow-md transition-all duration-300 bg-white/50"
+                className="border border-black/5 p-5 hover:border-black/20 hover:shadow-md transition-all duration-300 bg-white/50"
               >
-                <div className="w-10 h-10 rounded-lg border border-black/10 flex items-center justify-center mb-3 bg-black/5">
+                <div className="w-10 h-10 border border-black/10 flex items-center justify-center mb-3 bg-black/5">
                   <span className="material-symbols-outlined text-lg text-black">{value.icon}</span>
                 </div>
                 <h3 className="text-lg font-medium text-black mb-1">{value.title}</h3>
@@ -100,9 +100,9 @@ export default function AboutPage() {
               {team.map((member, index) => (
                 <div
                   key={index}
-                  className="text-center border border-black/5 p-4 rounded-lg hover:border-black/20 hover:shadow-sm transition-all duration-300 bg-white/30"
+                  className="text-center border border-black/5 p-4 hover:border-black/20 hover:shadow-sm transition-all duration-300 bg-white/30"
                 >
-                  <div className="w-16 h-16 rounded-full bg-black/5 border border-black/10 mx-auto mb-3 flex items-center justify-center">
+                  <div className="w-16 h-16 bg-black/5 border border-black/10 mx-auto mb-3 flex items-center justify-center">
                     <span className="material-symbols-outlined text-2xl text-black/40">person</span>
                   </div>
                   <h3 className="text-base font-medium text-black mb-1">{member.name}</h3>
@@ -113,7 +113,7 @@ export default function AboutPage() {
             </div>
           </div>
 
-          <div className="bg-black/95 backdrop-blur-sm text-white p-8 rounded-lg">
+          <div className="bg-black/95 backdrop-blur-sm text-white p-8">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl font-light mb-2">Join Our Mission</h2>
               <p className="text-white/70 mb-6 text-sm">
@@ -121,7 +121,7 @@ export default function AboutPage() {
               </p>
               <a
                 href="/contact"
-                className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all duration-300 rounded-lg"
+                className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all duration-300"
               >
                 Get in Touch
                 <span className="material-symbols-outlined text-base ml-1.5">arrow_forward</span>

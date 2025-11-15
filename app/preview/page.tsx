@@ -413,7 +413,7 @@ export default function PreviewPage() {
                 {hasChanges && (
                   <button
                     onClick={handleSaveChanges}
-                    className="px-4 py-2 text-xs font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 rounded-lg flex items-center gap-2"
+                    className="px-4 py-2 text-xs font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 flex items-center gap-2"
                   >
                     <span className="material-symbols-outlined text-sm">save</span>
                     Save Changes
@@ -421,7 +421,7 @@ export default function PreviewPage() {
                 )}
                 <button
                   onClick={() => router.push('/upload')}
-                  className="px-4 py-2 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 rounded-lg"
+                  className="px-4 py-2 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300"
                 >
                   Upload Another File
                 </button>
@@ -446,7 +446,7 @@ export default function PreviewPage() {
           </div>
 
           {error && !previewData && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="mb-4 p-4 bg-red-50 border border-red-200">
               <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
@@ -457,14 +457,14 @@ export default function PreviewPage() {
               <div className="mb-4 flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleAddRow}
-                  className="px-3 py-1.5 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 rounded-lg flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 flex items-center gap-1.5"
                 >
                   <span className="material-symbols-outlined text-sm">add</span>
                   Add Row
                 </button>
                 <button
                   onClick={handleAddColumn}
-                  className="px-3 py-1.5 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 rounded-lg flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 flex items-center gap-1.5"
                 >
                   <span className="material-symbols-outlined text-sm">add</span>
                   Add Column
@@ -472,7 +472,7 @@ export default function PreviewPage() {
                 {selectedRows.length > 0 && (
                   <button
                     onClick={handleDeleteRows}
-                    className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-all duration-300 rounded-lg flex items-center gap-1.5"
+                    className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-all duration-300 flex items-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-sm">delete</span>
                     Delete {selectedRows.length} Row(s)
@@ -487,7 +487,7 @@ export default function PreviewPage() {
               </div>
 
               {/* Glide Data Grid */}
-              <div className="border border-black/10 rounded-lg overflow-hidden shadow-sm bg-white">
+              <div className="border border-black/10 overflow-hidden shadow-sm bg-white">
                 <DataEditor
                   getCellContent={getCellContent}
                   columns={columns}

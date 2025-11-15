@@ -16,7 +16,7 @@ export default function Header() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-4 py-2 sm:px-6">
-      <div className="bg-white/95 backdrop-blur-sm border-b border-black/5 rounded-b-lg shadow-sm">
+      <div className="bg-white/95 backdrop-blur-sm border-b border-black/5 shadow-sm">
         <nav className="flex items-center justify-between py-2">
           <div className="flex items-center gap-2">
             <Link href="/" className="text-base font-bold tracking-tight text-black">
@@ -61,20 +61,20 @@ export default function Header() {
             {user ? (
               <>
                 <Link
-                  className="px-3 py-1.5 text-xs font-medium text-black/70 hover:text-black hover:bg-black/5 transition-all duration-300 rounded-lg"
+                  className="px-3 py-1.5 text-xs font-medium text-black/70 hover:text-black hover:bg-black/5 transition-all duration-300"
                   href="/dashboard"
                 >
                   Dashboard
                 </Link>
                 <Link
-                  className="px-3 py-1.5 text-xs font-medium text-black/70 hover:text-black hover:bg-black/5 transition-all duration-300 rounded-lg"
+                  className="px-3 py-1.5 text-xs font-medium text-black/70 hover:text-black hover:bg-black/5 transition-all duration-300"
                   href="/upload"
                 >
                   Upload
                 </Link>
                 <button
                   onClick={handleSignOut}
-                  className="px-3 py-1.5 text-xs font-semibold text-white bg-black hover:bg-black/90 transition-all duration-300 rounded-lg shadow-sm"
+                  className="px-3 py-1.5 text-xs font-semibold text-white bg-black hover:bg-black/90 transition-all duration-300 shadow-sm"
                 >
                   Sign Out
                 </button>
@@ -82,13 +82,13 @@ export default function Header() {
             ) : (
               <>
                 <Link
-                  className="px-3 py-1.5 text-xs font-medium text-black/70 hover:text-black hover:bg-black/5 transition-all duration-300 rounded-lg"
+                  className="px-3 py-1.5 text-xs font-medium text-black/70 hover:text-black hover:bg-black/5 transition-all duration-300"
                   href="/login"
                 >
                   Login
                 </Link>
                 <Link
-                  className="px-3 py-1.5 text-xs font-semibold text-white bg-black hover:bg-black/90 transition-all duration-300 rounded-lg shadow-sm"
+                  className="px-3 py-1.5 text-xs font-semibold text-white bg-black hover:bg-black/90 transition-all duration-300 shadow-sm"
                   href="/register"
                 >
                   Get started
@@ -96,7 +96,7 @@ export default function Header() {
               </>
             )}
           </div>
-          <button className="lg:hidden p-1 text-black rounded-lg hover:bg-black/10 transition-colors">
+          <button className="lg:hidden p-1 text-black hover:bg-black/10 transition-colors">
             <span className="material-symbols-outlined text-base">menu</span>
           </button>
         </nav>
