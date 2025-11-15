@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [isLoadingFiles, setIsLoadingFiles] = useState(true)
   const [totalSize, setTotalSize] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [filesPath, setFilesPath] = useState<string>('') // Track which path files are in
   const [editingFile, setEditingFile] = useState<string | null>(null) // Track which file is being renamed
   const [newFileName, setNewFileName] = useState<string>('')
@@ -159,14 +160,19 @@ export default function DashboardPage() {
           }
         })
         
+        // Filter out any null or undefined entries
+        const validData = processedData.filter((file: any) => file && (file.id || file.name))
+        
         // Sort by created_at descending (most recent first)
-        const sortedData = processedData.sort((a, b) => {
-          const dateA = new Date(a.created_at).getTime()
-          const dateB = new Date(b.created_at).getTime()
+        const sortedData = validData.sort((a, b) => {
+          const dateA = new Date(a.created_at || 0).getTime()
+          const dateB = new Date(b.created_at || 0).getTime()
           return dateB - dateA
         })
         
+        // Always update files list - this ensures deleted files are removed
         setFiles(sortedData as FileItem[])
+        
         // Calculate total size - check both size property and metadata.size
         const total = sortedData.reduce((sum, file) => {
           const fileSize = (file as any).size || (file as any).metadata?.size || 0
@@ -236,12 +242,22 @@ export default function DashboardPage() {
   }
 
   const handleFileClick = async (file: FileItem) => {
-    // Navigate to preview page with file path
+    // Navigate to file options page with file path
     // Use the detected path (legacy or standard)
     const basePath = filesPath || `uploads/${user?.id}`
     const filePath = `${basePath}/${file.name}`
     
     // Use original name from metadata if available, otherwise use stored name
+    const displayName = file.metadata?.originalName || file.name
+    router.push(`/file/options?path=${encodeURIComponent(filePath)}&name=${encodeURIComponent(displayName)}&type=${encodeURIComponent(file.metadata?.mimetype || '')}`)
+  }
+
+  const handlePreviewFile = (file: FileItem, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent row click event
+    
+    // Navigate directly to preview page
+    const basePath = filesPath || `uploads/${user?.id}`
+    const filePath = `${basePath}/${file.name}`
     const displayName = file.metadata?.originalName || file.name
     router.push(`/preview?path=${encodeURIComponent(filePath)}&name=${encodeURIComponent(displayName)}&type=${encodeURIComponent(file.metadata?.mimetype || '')}`)
   }
@@ -257,23 +273,77 @@ export default function DashboardPage() {
     if (!user) return
 
     try {
-      // Construct the file path
-      const basePath = filesPath || `uploads/${user.id}`
-      const filePath = `${basePath}/${file.name}`
+      // Construct the file path - try multiple possible paths
+      let basePath = filesPath || `uploads/${user.id}`
+      let filePath = `${basePath}/${file.name}`
+      
+      // If filesPath is empty, also try the legacy path
+      const possiblePaths = []
+      if (filesPath) {
+        possiblePaths.push(filePath)
+      } else {
+        // Try both paths
+        possiblePaths.push(`uploads/${user.id}/${file.name}`)
+        possiblePaths.push(`${user.id}/${file.name}`)
+      }
 
-      // Delete file from Supabase Storage
-      const { error: deleteError } = await supabase.storage
-        .from('files')
-        .remove([filePath])
+      let deleteError: any = null
+      let deleted = false
+      let successfulPath = ''
 
-      if (deleteError) {
-        setError(`Failed to delete file: ${deleteError.message}`)
+      // Try deleting with each possible path
+      for (const path of possiblePaths) {
+        const { error, data } = await supabase.storage
+          .from('files')
+          .remove([path])
+
+        if (!error) {
+          deleted = true
+          successfulPath = path
+          // Extract the base path from successful deletion
+          const pathParts = path.split('/')
+          if (pathParts.length >= 2) {
+            pathParts.pop() // Remove filename
+            const detectedPath = pathParts.join('/')
+            if (detectedPath !== filesPath) {
+              setFilesPath(detectedPath)
+            }
+          }
+          break
+        }
+        
+        // If it's not a "not found" error, store it
+        if (!error.message?.includes('not found') && !error.message?.includes('does not exist')) {
+          deleteError = error
+        }
+      }
+
+      if (!deleted) {
+        if (deleteError) {
+          setError(`Failed to delete file: ${deleteError.message}. Please check your storage policies allow DELETE operations.`)
+        } else {
+          setError(`Failed to delete file: File not found at any expected path. Please try refreshing the page.`)
+        }
         return
       }
 
-      // Remove file from local state
-      const updatedFiles = files.filter((f) => f.id !== file.id && f.name !== file.name)
-      setFiles(updatedFiles)
+      // Immediately remove file from local state for instant UI update
+      const updatedFiles = files.filter((f) => {
+        // Match by id, name, or both - exclude if any match
+        if (f.id && file.id && f.id === file.id) {
+          return false
+        }
+        if (f.name && file.name && f.name === file.name) {
+          return false
+        }
+        // Also check if they're the same object reference
+        return f !== file
+      })
+      
+      // Only update if we actually removed a file
+      if (updatedFiles.length < files.length) {
+        setFiles(updatedFiles)
+      }
 
       // Recalculate total size
       const newTotalSize = updatedFiles.reduce((sum, f) => {
@@ -282,10 +352,25 @@ export default function DashboardPage() {
       }, 0)
       setTotalSize(newTotalSize)
 
-      // Clear error if deletion was successful
+      // Clear error and show success message
       setError(null)
+      setSuccessMessage(`"${displayName}" deleted successfully`)
+      setTimeout(() => setSuccessMessage(null), 3000)
+      
+      // Reload files after a short delay to ensure Supabase has processed the deletion
+      // This ensures the list is accurate and removes any cached data
+      setTimeout(async () => {
+        try {
+          await loadUserFiles()
+        } catch (reloadErr) {
+          console.error('Error reloading files after deletion:', reloadErr)
+          // Don't show error to user as deletion was successful
+        }
+      }, 300)
     } catch (err: any) {
-      setError(`Failed to delete file: ${err.message || 'Unknown error'}`)
+      console.error('Delete error:', err)
+      const errorMsg = err.message || 'Unknown error'
+      setError(`Failed to delete file: ${errorMsg}. ${errorMsg.includes('policy') || errorMsg.includes('permission') ? 'Please check your Supabase Storage DELETE policy allows deletion.' : 'Please try again or check your storage policies.'}`)
     }
   }
 
@@ -478,66 +563,86 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-white">
       <Header />
-      <div className="pt-20 pb-4 px-4">
+      <div className="pt-20 pb-3 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <h1 className="text-2xl font-light text-black tracking-tight">
+              <h1 className="text-xl font-light text-black tracking-tight">
                 Dashboard
               </h1>
-              <p className="text-xs text-black/50 mt-1">{user.email}</p>
+              <p className="text-xs text-black/50 mt-0.5">{user.email}</p>
             </div>
             <Link
               href="/upload"
-              className="flex items-center gap-2 px-4 py-2 bg-black text-white hover:bg-black/90 transition-all text-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-black text-white hover:bg-black/90 transition-all text-xs"
             >
-              <span className="material-symbols-outlined text-lg">cloud_upload</span>
+              <span className="material-symbols-outlined text-base">cloud_upload</span>
               <span>Upload</span>
             </Link>
           </div>
 
+          {/* Success Message */}
+          {successMessage && (
+            <div className="mb-3 p-3 bg-green-50 border border-green-300">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm text-green-600">check_circle</span>
+                <p className="text-xs text-green-700">{successMessage}</p>
+              </div>
+            </div>
+          )}
+
           {/* Error Message */}
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-300">
+            <div className="mb-3 p-3 bg-red-50 border border-red-300">
               <div className="flex items-start gap-2">
-                <span className="material-symbols-outlined text-red-600">error</span>
+                <span className="material-symbols-outlined text-sm text-red-600">error</span>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-red-800 mb-1">Storage Policy Issue</p>
-                  <p className="text-xs text-red-700 mb-2">{error}</p>
-                  <details className="text-xs text-red-700">
-                    <summary className="cursor-pointer font-medium mb-1">View fix instructions</summary>
-                    <div className="mt-2 p-2 bg-white border border-red-200">
-                      <ol className="space-y-1 list-decimal list-inside text-xs">
-                        <li>Go to Supabase Dashboard → Storage → Policies → <code className="bg-red-100 px-1">files</code> bucket</li>
-                        <li>Edit your SELECT policy</li>
-                        <li>Use: <code className="bg-gray-100 px-1">bucket_id = 'files'::text AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.uid()::text = (storage.foldername(name))[0])</code></li>
-                        <li>Save and refresh this page</li>
-                      </ol>
-                    </div>
-                  </details>
+                  <p className="text-xs font-semibold text-red-800 mb-0.5">
+                    {error.includes('Policy') || error.includes('policy') ? 'Storage Policy Issue' : 'Error'}
+                  </p>
+                  <p className="text-xs text-red-700 mb-1.5">{error}</p>
+                  {error.includes('policy') || error.includes('permission') ? (
+                    <details className="text-xs text-red-700">
+                      <summary className="cursor-pointer font-medium mb-0.5">View fix instructions</summary>
+                      <div className="mt-1.5 p-1.5 bg-white border border-red-200">
+                        <ol className="space-y-0.5 list-decimal list-inside text-xs">
+                          <li>Go to Supabase Dashboard → Storage → Policies → <code className="bg-red-100 px-1">files</code> bucket</li>
+                          <li>Create or edit your DELETE policy</li>
+                          <li>Use: <code className="bg-gray-100 px-1">bucket_id = 'files'::text AND (auth.uid()::text = (storage.foldername(name))[1] OR auth.uid()::text = (storage.foldername(name))[0])</code></li>
+                          <li>Save and refresh this page</li>
+                        </ol>
+                      </div>
+                    </details>
+                  ) : null}
                 </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-red-600 hover:text-red-800 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
               </div>
             </div>
           )}
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <div className="p-4 bg-black/5 border border-black/10">
-              <p className="text-xs text-black/60 mb-1">Files</p>
-              <p className="text-2xl font-light text-black">{files.length}</p>
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="p-2.5 bg-black/5 border border-black/10">
+              <p className="text-xs text-black/60 mb-0.5">Files</p>
+              <p className="text-xl font-light text-black">{files.length}</p>
             </div>
-            <div className="p-4 bg-black/5 border border-black/10">
-              <p className="text-xs text-black/60 mb-1">Storage</p>
-              <p className="text-2xl font-light text-black">{formatFileSize(totalSize)}</p>
+            <div className="p-2.5 bg-black/5 border border-black/10">
+              <p className="text-xs text-black/60 mb-0.5">Storage</p>
+              <p className="text-xl font-light text-black">{formatFileSize(totalSize)}</p>
             </div>
-            <div className="p-4 bg-black/5 border border-black/10">
+            <div className="p-2.5 bg-black/5 border border-black/10">
               <button
                 onClick={loadUserFiles}
-                className="w-full flex items-center justify-center gap-2 text-xs text-black/70 hover:text-black transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-black/70 hover:text-black transition-colors"
                 title="Refresh files"
               >
-                <span className="material-symbols-outlined text-base">refresh</span>
+                <span className="material-symbols-outlined text-sm">refresh</span>
                 <span>Refresh</span>
               </button>
             </div>
@@ -545,42 +650,42 @@ export default function DashboardPage() {
 
           {/* Files Section */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-light text-black">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-base font-light text-black">
                 {files.length > 0 ? 'Files' : 'No Files'}
               </h2>
             </div>
 
             {files.length === 0 ? (
-              <div className="text-center py-8 bg-black/5 border border-black/10">
-                <span className="material-symbols-outlined text-4xl text-black/30 mb-2 inline-block">
+              <div className="text-center py-6 bg-black/5 border border-black/10">
+                <span className="material-symbols-outlined text-3xl text-black/30 mb-1.5 inline-block">
                   folder_open
                 </span>
-                <p className="text-sm text-black/60 mb-3">No files uploaded yet</p>
+                <p className="text-xs text-black/60 mb-2">No files uploaded yet</p>
                 <Link
                   href="/upload"
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-black hover:bg-black/90 transition-all"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-black hover:bg-black/90 transition-all"
                 >
-                  <span className="material-symbols-outlined">cloud_upload</span>
+                  <span className="material-symbols-outlined text-sm">cloud_upload</span>
                   Upload File
                 </Link>
               </div>
             ) : (
               <div className="bg-white border border-black/10 overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs">
                     <thead className="bg-black/5 border-b border-black/10">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-black/70 uppercase">
+                        <th className="px-3 py-1.5 text-left text-xs font-medium text-black/70 uppercase">
                           File Name
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-black/70 uppercase">
+                        <th className="px-3 py-1.5 text-left text-xs font-medium text-black/70 uppercase">
                           Size
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-black/70 uppercase">
+                        <th className="px-3 py-1.5 text-left text-xs font-medium text-black/70 uppercase">
                           Uploaded
                         </th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-black/70 uppercase">
+                        <th className="px-3 py-1.5 text-right text-xs font-medium text-black/70 uppercase">
                           Actions
                         </th>
                       </tr>
@@ -592,12 +697,12 @@ export default function DashboardPage() {
                           className="hover:bg-black/5 transition-colors"
                         >
                           <td
-                            className="px-4 py-3 cursor-pointer"
+                            className="px-3 py-2 cursor-pointer"
                             onClick={() => handleFileClick(file)}
                           >
                             {editingFile === (file.id || file.name) ? (
-                              <div className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-xl text-black/60">
+                              <div className="flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-base text-black/60">
                                   {getFileIcon(getDisplayFileName(file))}
                                 </span>
                                 <input
@@ -607,83 +712,92 @@ export default function DashboardPage() {
                                   onBlur={() => handleSaveRename(file)}
                                   onKeyDown={(e) => handleKeyDownRename(e, file)}
                                   autoFocus
-                                  className="flex-1 px-2 py-1 text-sm border border-black/30 bg-white focus:outline-none focus:border-black/60 font-medium text-black"
+                                  className="flex-1 px-2 py-0.5 text-xs border border-black/30 bg-white focus:outline-none focus:border-black/60 font-medium text-black"
                                   disabled={isRenaming}
                                 />
                               </div>
                             ) : (
-                              <div className="flex items-center gap-3">
-                                <span className="material-symbols-outlined text-xl text-black/60">
+                              <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-base text-black/60">
                                   {getFileIcon(getDisplayFileName(file))}
                                 </span>
-                                <span className="font-medium text-black text-sm">{getDisplayFileName(file)}</span>
+                                <span className="font-medium text-black text-xs">{getDisplayFileName(file)}</span>
                               </div>
                             )}
                           </td>
                           <td
-                            className="px-4 py-3 text-black/60 text-sm cursor-pointer"
+                            className="px-3 py-2 text-black/60 text-xs cursor-pointer"
                             onClick={() => handleFileClick(file)}
                           >
                             {formatFileSize((file as any).size || file.metadata?.size || 0)}
                           </td>
                           <td
-                            className="px-4 py-3 text-black/60 text-sm cursor-pointer"
+                            className="px-3 py-2 text-black/60 text-xs cursor-pointer"
                             onClick={() => handleFileClick(file)}
                           >
                             {formatDate(file.created_at)}
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex items-center justify-end gap-0.5">
                               {editingFile !== (file.id || file.name) && (
                                 <>
                                   <button
+                                    onClick={(e) => handlePreviewFile(file, e)}
+                                    className="p-1 hover:bg-green-100 transition-colors group"
+                                    title="Preview file"
+                                  >
+                                    <span className="material-symbols-outlined text-xs text-green-600 group-hover:text-green-700">
+                                      visibility
+                                    </span>
+                                  </button>
+                                  <button
                                     onClick={(e) => handleDownloadFile(file, e)}
-                                    className="p-2 hover:bg-blue-100 transition-colors group"
+                                    className="p-1 hover:bg-blue-100 transition-colors group"
                                     title="Download file"
                                   >
-                                    <span className="material-symbols-outlined text-sm text-blue-600 group-hover:text-blue-700">
+                                    <span className="material-symbols-outlined text-xs text-blue-600 group-hover:text-blue-700">
                                       download
                                     </span>
                                   </button>
                                   <button
                                     onClick={(e) => handleStartRename(file, e)}
-                                    className="p-2 hover:bg-black/10 transition-colors group"
+                                    className="p-1 hover:bg-black/10 transition-colors group"
                                     title="Rename file"
                                   >
-                                    <span className="material-symbols-outlined text-sm text-black/60 group-hover:text-black">
+                                    <span className="material-symbols-outlined text-xs text-black/60 group-hover:text-black">
                                       edit
                                     </span>
                                   </button>
                                   <button
                                     onClick={(e) => handleDeleteFile(file, e)}
-                                    className="p-2 hover:bg-red-100 transition-colors group"
+                                    className="p-1 hover:bg-red-100 transition-colors group"
                                     title="Delete file"
                                   >
-                                    <span className="material-symbols-outlined text-sm text-red-600 group-hover:text-red-700">
+                                    <span className="material-symbols-outlined text-xs text-red-600 group-hover:text-red-700">
                                       delete
                                     </span>
                                   </button>
                                 </>
                               )}
                               {editingFile === (file.id || file.name) && (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-0.5">
                                   <button
                                     onClick={() => handleSaveRename(file)}
                                     disabled={isRenaming}
-                                    className="p-2 hover:bg-green-100 transition-colors group disabled:opacity-50"
+                                    className="p-1 hover:bg-green-100 transition-colors group disabled:opacity-50"
                                     title="Save"
                                   >
-                                    <span className="material-symbols-outlined text-sm text-green-600 group-hover:text-green-700">
+                                    <span className="material-symbols-outlined text-xs text-green-600 group-hover:text-green-700">
                                       check
                                     </span>
                                   </button>
                                   <button
                                     onClick={handleCancelRename}
                                     disabled={isRenaming}
-                                    className="p-2 hover:bg-black/10 transition-colors group disabled:opacity-50"
+                                    className="p-1 hover:bg-black/10 transition-colors group disabled:opacity-50"
                                     title="Cancel"
                                   >
-                                    <span className="material-symbols-outlined text-sm text-black/60 group-hover:text-black">
+                                    <span className="material-symbols-outlined text-xs text-black/60 group-hover:text-black">
                                       close
                                     </span>
                                   </button>
