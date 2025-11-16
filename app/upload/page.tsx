@@ -182,25 +182,12 @@ export default function UploadPage() {
         throw uploadError
       }
 
-      setUploadProgress(80)
-
-      // Prepare preview data
-      const previewData = {
-        headers: parsedData.headers,
-        rows: parsedData.rows,
-        fileName: selectedFile.name,
-        fileType: selectedFile.type,
-        rowCount: parsedData.rows.length,
-      }
-
-      // Store preview data in sessionStorage
-      sessionStorage.setItem('previewData', JSON.stringify(previewData))
-
       setUploadProgress(100)
       setIsUploading(false)
 
-      // Navigate to preview page
-      router.push('/preview')
+      // Navigate to preview page with file path as query parameter
+      // The preview page will load the file from Supabase Storage
+      router.push(`/preview?path=${encodeURIComponent(filePath)}&name=${encodeURIComponent(selectedFile.name)}&type=${encodeURIComponent(selectedFile.type || '')}`)
 
       // Optionally, you can save file metadata to database here
       // await supabase.from('files').insert({
@@ -214,7 +201,8 @@ export default function UploadPage() {
       let errorMessage = err.message || 'Failed to upload file'
       
       // Provide helpful error message for bucket not found
-      if (err.message?.includes('Bucket not found') || err.message?.includes('bucket')?.toLowerCase().includes('not found')) {
+      const errMsg = err.message || ''
+      if (errMsg.includes('Bucket not found') || (errMsg.toLowerCase().includes('bucket') && errMsg.toLowerCase().includes('not found'))) {
         errorMessage = 'Storage bucket "files" not found. Please create a bucket named "files" in your Supabase Storage dashboard. See SUPABASE_SETUP.md for instructions.'
       }
       

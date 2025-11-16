@@ -16,6 +16,7 @@ interface PreviewData {
   fileName: string
   fileType: string
   rowCount: number
+  filePath?: string // Optional file path for saving
 }
 
 export default function PreviewPage() {
@@ -24,8 +25,13 @@ export default function PreviewPage() {
   const { user, loading } = useAuth()
   const [previewData, setPreviewData] = useState<PreviewData | null>(null)
   const [originalData, setOriginalData] = useState<PreviewData | null>(null) // Store original data for discard
+  const [filePath, setFilePath] = useState<string | null>(null) // Store file path for saving
+  const [changeHistory, setChangeHistory] = useState<PreviewData[]>([]) // Track all changes
+  const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1) // Current position in history
   const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
   const [selectedRows, setSelectedRows] = useState<CompactSelection>(CompactSelection.empty())
   const [selectedColumn, setSelectedColumn] = useState<number | null>(null)
@@ -65,7 +71,11 @@ export default function PreviewPage() {
   }, [previewData])
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (loading) {
+      return // Wait for auth to finish loading
+    }
+
+    if (!user) {
       router.push('/login')
       return
     }
@@ -76,29 +86,42 @@ export default function PreviewPage() {
       return
     }
 
-    const filePath = searchParams.get('path')
+    const filePathParam = searchParams.get('path')
     const fileName = searchParams.get('name') || 'file'
     const fileType = searchParams.get('type') || ''
 
-    if (filePath && user) {
-      loadAndParseFile(filePath, fileName, fileType)
+    if (filePathParam) {
+      setFilePath(filePathParam) // Store file path for saving
+      loadAndParseFile(filePathParam, fileName, fileType)
     } else {
+      // Try to load from sessionStorage (fallback for files uploaded before this change)
       const storedData = sessionStorage.getItem('previewData')
       if (storedData) {
         try {
           const parsed = JSON.parse(storedData)
+          
+          // Extract and store file path if available
+          if (parsed.filePath) {
+            setFilePath(parsed.filePath)
+          }
+          
           setPreviewData(parsed)
-          setOriginalData(JSON.parse(JSON.stringify(parsed))) // Deep copy for discard
+          const deepCopy = JSON.parse(JSON.stringify(parsed))
+          setOriginalData(deepCopy) // Deep copy for discard
+          setChangeHistory([deepCopy]) // Initialize history with original
+          setCurrentHistoryIndex(0) // Set to first history entry
           setError(null)
           setIsLoading(false)
+          // Clear sessionStorage after loading to prevent stale data
           sessionStorage.removeItem('previewData')
         } catch (err) {
-          setError('Failed to load preview data')
+          console.error('Failed to parse preview data:', err)
+          setError('Failed to load preview data. Please try uploading the file again.')
           setIsLoading(false)
         }
       } else {
         setIsLoading(false)
-        setError('No file data found')
+        setError('No file data found. Please select a file from the dashboard or upload a new file.')
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,14 +208,47 @@ export default function PreviewPage() {
         throw new Error('Unsupported file type. Please upload CSV or Excel files.')
       }
 
-             setPreviewData(parsedData)
-             setOriginalData(JSON.parse(JSON.stringify(parsedData))) // Deep copy for discard
-             setIsLoading(false)
-           } catch (err: any) {
-             setError(err.message || 'Failed to load file')
-             setIsLoading(false)
-           }
-         }
+      const deepCopy = JSON.parse(JSON.stringify(parsedData))
+      setPreviewData(parsedData)
+      setOriginalData(deepCopy) // Deep copy for discard
+      setChangeHistory([deepCopy]) // Initialize history with original
+      setCurrentHistoryIndex(0) // Set to first history entry
+      setIsLoading(false)
+    } catch (err: any) {
+      setError(err.message || 'Failed to load file')
+      setIsLoading(false)
+    }
+  }
+
+  // Save snapshot to change history
+  const saveToHistory = useCallback((data: PreviewData) => {
+    const snapshot = JSON.parse(JSON.stringify(data)) // Deep copy
+    
+    // Update both states atomically
+    setCurrentHistoryIndex((prevIndex) => {
+      setChangeHistory((prevHistory) => {
+        // If we're not at the end of history, remove all entries after current index
+        const newHistory = prevHistory.slice(0, prevIndex + 1)
+        newHistory.push(snapshot)
+        
+        // Limit history to last 50 changes to prevent memory issues
+        const limitedHistory = newHistory.length > 50 
+          ? newHistory.slice(-50) 
+          : newHistory
+        
+        // Calculate new index based on limited history length
+        const calculatedIndex = limitedHistory.length - 1
+        // Update index to point to the new entry (last in limited history)
+        // Limit to 49 (since we have max 50 entries, index 0-49)
+        setCurrentHistoryIndex(Math.min(calculatedIndex, 49))
+        
+        return limitedHistory
+      })
+      
+      // Return current index - it will be updated in setChangeHistory callback
+      return prevIndex
+    })
+  }, [])
 
   const parseCSV = async (file: Blob, fileName: string, fileType: string): Promise<PreviewData> => {
     return new Promise((resolve, reject) => {
@@ -408,13 +464,18 @@ export default function PreviewPage() {
       }
       newRows[actualRowIndex][col] = newValue.data
 
-      setPreviewData({
+      const updatedData = {
         ...previewData,
         rows: newRows,
-      })
+      }
+      
+      // Save to history before updating
+      saveToHistory(previewData)
+      
+      setPreviewData(updatedData)
       setHasChanges(true)
     }
-  }, [previewData, getDisplayData, getAllFilteredData, searchQuery, sortConfig, currentPage, rowsPerPage])
+  }, [previewData, getDisplayData, getAllFilteredData, searchQuery, sortConfig, currentPage, rowsPerPage, saveToHistory])
 
 
   // Handle adding new row
@@ -424,11 +485,16 @@ export default function PreviewPage() {
     const newRow = new Array(previewData.headers.length).fill('')
     const newRows = [...previewData.rows, newRow]
 
-    setPreviewData({
+    const updatedData = {
       ...previewData,
       rows: newRows,
       rowCount: newRows.length,
-    })
+    }
+    
+    // Save to history before updating
+    saveToHistory(previewData)
+    
+    setPreviewData(updatedData)
     setHasChanges(true)
   }
 
@@ -464,11 +530,16 @@ export default function PreviewPage() {
 
       const newRows = previewData.rows.filter((_, idx) => !indicesToDelete.includes(idx))
 
-      setPreviewData({
+      const updatedData = {
         ...previewData,
         rows: newRows,
         rowCount: newRows.length,
-      })
+      }
+      
+      // Save to history before updating
+      saveToHistory(previewData)
+      
+      setPreviewData(updatedData)
       setSelectedRows(CompactSelection.empty())
       setHasChanges(true)
       
@@ -489,11 +560,16 @@ export default function PreviewPage() {
     const newHeaders = [...previewData.headers, newHeaderName]
     const newRows = previewData.rows.map((row) => [...row, ''])
 
-    setPreviewData({
+    const updatedData = {
       ...previewData,
       headers: newHeaders,
       rows: newRows,
-    })
+    }
+    
+    // Save to history before updating
+    saveToHistory(previewData)
+    
+    setPreviewData(updatedData)
     setHasChanges(true)
   }
 
@@ -510,11 +586,16 @@ export default function PreviewPage() {
       const newHeaders = previewData.headers.filter((_, idx) => idx !== colIndex)
       const newRows = previewData.rows.map((row) => row.filter((_, idx) => idx !== colIndex))
 
-      setPreviewData({
+      const updatedData = {
         ...previewData,
         headers: newHeaders,
         rows: newRows,
-      })
+      }
+      
+      // Save to history before updating
+      saveToHistory(previewData)
+      
+      setPreviewData(updatedData)
       setSelectedColumn(null)
       setHasChanges(true)
     }
@@ -527,10 +608,15 @@ export default function PreviewPage() {
     const newHeaders = [...previewData.headers]
     newHeaders[colIndex] = newName.trim() || `Column ${colIndex + 1}`
 
-    setPreviewData({
+    const updatedData = {
       ...previewData,
       headers: newHeaders,
-    })
+    }
+    
+    // Save to history before updating
+    saveToHistory(previewData)
+    
+    setPreviewData(updatedData)
     setHasChanges(true)
   }
 
@@ -588,23 +674,75 @@ export default function PreviewPage() {
     
     if (hasChanges) {
       if (confirm('Are you sure you want to discard all unsaved changes? This action cannot be undone.')) {
-        setPreviewData(JSON.parse(JSON.stringify(originalData))) // Deep copy to reset
+        const deepCopy = JSON.parse(JSON.stringify(originalData))
+        setPreviewData(deepCopy) // Deep copy to reset
+        setChangeHistory([deepCopy]) // Reset history to original
+        setCurrentHistoryIndex(0) // Reset history index
         setHasChanges(false)
         setSelectedRows(CompactSelection.empty())
         setError(null)
+        setSuccessMessage(null)
       }
     }
   }
 
-  // Handle save changes
-  const handleSaveChanges = () => {
-    if (!previewData) return
+  // Handle undo (revert to previous change)
+  const handleUndo = () => {
+    if (!previewData || changeHistory.length === 0 || currentHistoryIndex <= 0) return
+    
+    const previousIndex = currentHistoryIndex - 1
+    const previousData = changeHistory[previousIndex]
+    
+    if (previousData) {
+      setPreviewData(JSON.parse(JSON.stringify(previousData))) // Deep copy
+      setCurrentHistoryIndex(previousIndex)
+      
+      // Check if we're back to original
+      if (previousIndex === 0 && originalData) {
+        const isSame = JSON.stringify(previousData) === JSON.stringify(originalData)
+        setHasChanges(!isSame)
+      } else {
+        setHasChanges(true)
+      }
+    }
+  }
+
+  // Handle revert to original
+  const handleRevertToOriginal = () => {
+    if (!originalData) return
+    
+    if (confirm('Are you sure you want to revert all changes back to the original file? This action cannot be undone.')) {
+      const deepCopy = JSON.parse(JSON.stringify(originalData))
+      setPreviewData(deepCopy)
+      setChangeHistory([deepCopy]) // Reset history to original
+      setCurrentHistoryIndex(0) // Reset history index
+      setHasChanges(false)
+      setSelectedRows(CompactSelection.empty())
+      setError(null)
+      setSuccessMessage(null)
+    }
+  }
+
+  // Handle save changes - upload back to Supabase Storage
+  const handleSaveChanges = async () => {
+    if (!previewData || !filePath) {
+      setError('Cannot save: File path not available. Please reload the page.')
+      return
+    }
+
+    if (!user) {
+      setError('Cannot save: User not authenticated.')
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    setSuccessMessage(null)
 
     try {
       const extension = previewData.fileName.split('.').pop()?.toLowerCase()
       let blob: Blob
       let mimeType: string
-      let filename: string
 
       if (extension === 'csv') {
         const csvRows = [
@@ -622,7 +760,6 @@ export default function PreviewPage() {
         const csvContent = csvRows.join('\n')
         blob = new Blob([csvContent], { type: 'text/csv' })
         mimeType = 'text/csv'
-        filename = previewData.fileName.replace(/\.[^/.]+$/, '_edited.csv')
       } else {
         const wb = XLSX.utils.book_new()
         const ws = XLSX.utils.aoa_to_sheet([
@@ -635,27 +772,36 @@ export default function PreviewPage() {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
         mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        filename = previewData.fileName.replace(/\.[^/.]+$/, '_edited.xlsx')
       }
 
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      // Upload to Supabase Storage, replacing the existing file
+      const { error: uploadError } = await supabase.storage
+        .from('files')
+        .upload(filePath, blob, {
+          cacheControl: '3600',
+          upsert: true, // Replace existing file
+          contentType: mimeType,
+        })
 
-             setHasChanges(false)
-             // Update original data to match saved data
-             setOriginalData(JSON.parse(JSON.stringify(previewData)))
-             alert('File downloaded successfully!')
-           } catch (err) {
-             setError('Failed to save changes')
-             console.error(err)
-           }
-         }
+      if (uploadError) {
+        throw new Error(`Failed to upload file: ${uploadError.message}`)
+      }
+
+      // Update original data to match saved data
+      const deepCopy = JSON.parse(JSON.stringify(previewData))
+      setOriginalData(deepCopy)
+      setChangeHistory([deepCopy]) // Reset history to saved state
+      setCurrentHistoryIndex(0) // Reset history index
+      setHasChanges(false)
+      setSuccessMessage('File saved successfully!')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err: any) {
+      setError(err.message || 'Failed to save changes')
+      console.error(err)
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   if (loading || isLoading) {
     return (
@@ -704,18 +850,42 @@ export default function PreviewPage() {
                   <span className="material-symbols-outlined text-sm">add</span>
                   Add Column
                 </button>
+                {/* Undo button */}
+                {changeHistory.length > 0 && currentHistoryIndex > 0 && (
+                  <button
+                    onClick={handleUndo}
+                    className="px-3 py-1.5 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 flex items-center gap-1.5"
+                    title="Undo last change"
+                  >
+                    <span className="material-symbols-outlined text-sm">undo</span>
+                    Undo
+                  </button>
+                )}
+                {/* Revert to original button */}
+                {hasChanges && originalData && (
+                  <button
+                    onClick={handleRevertToOriginal}
+                    className="px-3 py-1.5 text-xs font-medium text-orange-600 border border-orange-200 hover:bg-orange-50 transition-all duration-300 flex items-center gap-1.5"
+                    title="Revert all changes to original file"
+                  >
+                    <span className="material-symbols-outlined text-sm">restore</span>
+                    Revert
+                  </button>
+                )}
                 {hasChanges && (
                   <>
                     <button
                       onClick={handleSaveChanges}
-                      className="px-4 py-2 text-xs font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 flex items-center gap-2"
+                      disabled={isSaving || !filePath}
+                      className="px-4 py-2 text-xs font-medium text-white bg-black hover:bg-black/90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <span className="material-symbols-outlined text-sm">save</span>
-                      Save Changes
+                      <span className="material-symbols-outlined text-sm">{isSaving ? 'hourglass_empty' : 'save'}</span>
+                      {isSaving ? 'Saving...' : 'Save Changes'}
                     </button>
                     <button
                       onClick={handleDiscardChanges}
-                      className="px-4 py-2 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 flex items-center gap-2"
+                      disabled={isSaving}
+                      className="px-4 py-2 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="material-symbols-outlined text-sm">close</span>
                       Discard Changes
@@ -742,9 +912,33 @@ export default function PreviewPage() {
             )}
           </div>
 
-          {error && !previewData && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200">
-              <p className="text-sm text-red-700">{error}</p>
+          {/* Success Message */}
+          {successMessage && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm text-green-600">check_circle</span>
+              <p className="text-xs text-green-700">{successMessage}</p>
+              <button
+                onClick={() => setSuccessMessage(null)}
+                className="ml-auto text-green-600 hover:text-green-800 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 flex items-start gap-2">
+              <span className="material-symbols-outlined text-sm text-red-600">error</span>
+              <div className="flex-1">
+                <p className="text-xs text-red-700">{error}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-600 hover:text-red-800 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
             </div>
           )}
 
@@ -864,6 +1058,11 @@ export default function PreviewPage() {
                   <span className="text-xs text-orange-600 flex items-center gap-1">
                     <span className="material-symbols-outlined text-sm">edit</span>
                     Unsaved changes
+                    {changeHistory.length > 1 && (
+                      <span className="text-orange-500 ml-1">
+                        ({currentHistoryIndex} {currentHistoryIndex === 1 ? 'change' : 'changes'})
+                      </span>
+                    )}
                   </span>
                 )}
               </div>
@@ -969,11 +1168,16 @@ export default function PreviewPage() {
                         return newRow
                       })
                       
-                      setPreviewData({
+                      const updatedData = {
                         ...previewData,
                         headers: newHeaders,
                         rows: newRows,
-                      })
+                      }
+                      
+                      // Save to history before updating
+                      saveToHistory(previewData)
+                      
+                      setPreviewData(updatedData)
                       setHasChanges(true)
                     }}
                     onColumnResize={(column, newSize) => {
@@ -1013,7 +1217,7 @@ export default function PreviewPage() {
                       bgCell: '#ffffff',
                       bgCellMedium: '#fafafa',
                       bgHeader: '#f5f5f5',
-                      bgHeaderHasFocus: '#000000',
+                      bgHeaderHasFocus: '#d0d0d0',
                       bgHeaderHovered: '#e5e5e5',
                       bgBubble: '#ffffff',
                       bgBubbleSelected: '#f5f5f5',
