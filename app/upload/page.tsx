@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase/client'
-import * as XLSX from 'xlsx'
-import Papa from 'papaparse'
+import { parseFileByExtension } from '@/lib/parseFile'
 
 interface FileWithPreview extends File {
   preview?: string
@@ -84,68 +83,6 @@ export default function UploadPage() {
     }
   }
 
-  const parseFile = async (file: File): Promise<{ headers: string[]; rows: (string | number)[][] }> => {
-    const extension = file.name.split('.').pop()?.toLowerCase()
-
-    if (extension === 'csv') {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          try {
-            const text = e.target?.result as string
-            Papa.parse(text, {
-              header: false,
-              skipEmptyLines: true,
-              complete: (results) => {
-                const rows = results.data as (string | number)[][]
-                if (rows.length === 0) {
-                  reject(new Error('CSV file is empty'))
-                  return
-                }
-                const headers = rows[0] as string[]
-                const dataRows = rows.slice(1)
-                resolve({ headers, rows: dataRows })
-              },
-              error: (error) => reject(error),
-            })
-          } catch (err) {
-            reject(err)
-          }
-        }
-        reader.onerror = () => reject(new Error('Failed to read CSV file'))
-        reader.readAsText(file)
-      })
-    } else if (extension === 'xlsx' || extension === 'xls') {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          try {
-            const data = e.target?.result
-            const workbook = XLSX.read(data, { type: 'binary' })
-            const firstSheetName = workbook.SheetNames[0]
-            const worksheet = workbook.Sheets[firstSheetName]
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
-
-            if (jsonData.length === 0) {
-              reject(new Error('Excel file is empty'))
-              return
-            }
-
-            const headers = (jsonData[0] as any[]).map((h) => String(h || ''))
-            const rows = jsonData.slice(1) as (string | number)[][]
-            resolve({ headers, rows })
-          } catch (err) {
-            reject(err)
-          }
-        }
-        reader.onerror = () => reject(new Error('Failed to read Excel file'))
-        reader.readAsArrayBuffer(file)
-      })
-    } else {
-      throw new Error('Unsupported file type. Please upload CSV or Excel files.')
-    }
-  }
-
   const handleUpload = async () => {
     if (!selectedFile || !user) return
 
@@ -156,7 +93,7 @@ export default function UploadPage() {
     try {
       // Parse file first to validate and get preview data
       setUploadProgress(20)
-      const parsedData = await parseFile(selectedFile)
+      const parsedData = await parseFileByExtension(selectedFile)
 
       // Create a unique file path
       const fileExt = selectedFile.name.split('.').pop()

@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase/client'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
+import { parseCsvBlob, parseExcelBlob, ParsedFile } from '@/lib/parseFile'
 import { DataEditor, GridCell, GridColumn, Item, EditableGridCell, CompactSelection } from '@glideapps/glide-data-grid'
 import '@glideapps/glide-data-grid/dist/index.css'
 
@@ -19,6 +20,25 @@ interface PreviewData {
   filePath?: string // Optional file path for saving
 }
 
+// Delta types for versioning system
+type DeltaOperation = 
+  | { type: 'cell_update'; row: number; col: number; oldValue: string | number; newValue: string | number }
+  | { type: 'row_add'; index: number; row: (string | number)[] }
+  | { type: 'row_delete'; index: number; row: (string | number)[] }
+  | { type: 'row_update'; index: number; changes: { col: number; oldValue: string | number; newValue: string | number }[] }
+  | { type: 'column_add'; index: number; header: string; values: (string | number)[] }
+  | { type: 'column_delete'; index: number; header: string; values: (string | number)[] }
+  | { type: 'column_rename'; index: number; oldHeader: string; newHeader: string }
+  | { type: 'column_move'; fromIndex: number; toIndex: number }
+  | { type: 'headers_update'; oldHeaders: string[]; newHeaders: string[] }
+
+interface Delta {
+  timestamp: number
+  operations: DeltaOperation[]
+}
+
+type DeltaHistory = Delta[]
+
 export default function PreviewPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -26,7 +46,7 @@ export default function PreviewPage() {
   const [previewData, setPreviewData] = useState<PreviewData | null>(null)
   const [originalData, setOriginalData] = useState<PreviewData | null>(null) // Store original data for discard
   const [filePath, setFilePath] = useState<string | null>(null) // Store file path for saving
-  const [changeHistory, setChangeHistory] = useState<PreviewData[]>([]) // Track all changes
+  const [deltaHistory, setDeltaHistory] = useState<DeltaHistory>([]) // Track deltas (changes only)
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1) // Current position in history
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -43,6 +63,303 @@ export default function PreviewPage() {
   const [rowsPerPage, setRowsPerPage] = useState<number>(50)
   const gridContainerRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+
+  // Compute delta between two states
+  const computeDelta = useCallback((oldData: PreviewData, newData: PreviewData): Delta => {
+    const operations: DeltaOperation[] = []
+
+    // Check for header changes
+    if (JSON.stringify(oldData.headers) !== JSON.stringify(newData.headers)) {
+      // Check if it's a rename, add, delete, or move
+      const oldHeaders = [...oldData.headers]
+      const newHeaders = [...newData.headers]
+
+      // Check for column renames
+      for (let i = 0; i < Math.min(oldHeaders.length, newHeaders.length); i++) {
+        if (oldHeaders[i] !== newHeaders[i]) {
+          // Check if it's a rename or a move
+          const newIndex = newHeaders.indexOf(oldHeaders[i])
+          if (newIndex === -1) {
+            // Column was renamed
+            operations.push({
+              type: 'column_rename',
+              index: i,
+              oldHeader: oldHeaders[i],
+              newHeader: newHeaders[i],
+            })
+          }
+        }
+      }
+
+      // Check for column additions/deletions
+      if (newHeaders.length > oldHeaders.length) {
+        // Column added
+        for (let i = 0; i < newHeaders.length; i++) {
+          if (!oldHeaders.includes(newHeaders[i])) {
+            const values = newData.rows.map(row => row[i] || '')
+            operations.push({
+              type: 'column_add',
+              index: i,
+              header: newHeaders[i],
+              values,
+            })
+          }
+        }
+      } else if (newHeaders.length < oldHeaders.length) {
+        // Column deleted
+        for (let i = 0; i < oldHeaders.length; i++) {
+          if (!newHeaders.includes(oldHeaders[i])) {
+            const values = oldData.rows.map(row => row[i] || '')
+            operations.push({
+              type: 'column_delete',
+              index: i,
+              header: oldHeaders[i],
+              values,
+            })
+          }
+        }
+      }
+
+      // Check for column moves
+      const movedColumns: { from: number; to: number }[] = []
+      for (let i = 0; i < Math.min(oldHeaders.length, newHeaders.length); i++) {
+        if (oldHeaders[i] !== newHeaders[i]) {
+          const newIndex = newHeaders.indexOf(oldHeaders[i])
+          if (newIndex !== -1 && newIndex !== i) {
+            movedColumns.push({ from: i, to: newIndex })
+          }
+        }
+      }
+      // Record moves (only unique ones)
+      movedColumns.forEach(({ from, to }) => {
+        if (!operations.some(op => op.type === 'column_move' && op.fromIndex === from && op.toIndex === to)) {
+          operations.push({
+            type: 'column_move',
+            fromIndex: from,
+            toIndex: to,
+          })
+        }
+      })
+    }
+
+    // Check for row changes
+    if (newData.rows.length > oldData.rows.length) {
+      // Rows added
+      for (let i = oldData.rows.length; i < newData.rows.length; i++) {
+        operations.push({
+          type: 'row_add',
+          index: i,
+          row: newData.rows[i],
+        })
+      }
+    } else if (newData.rows.length < oldData.rows.length) {
+      // Rows deleted - find which ones
+      const deletedIndices: number[] = []
+      for (let i = 0; i < oldData.rows.length; i++) {
+        const oldRow = oldData.rows[i]
+        const exists = newData.rows.some(newRow => JSON.stringify(newRow) === JSON.stringify(oldRow))
+        if (!exists) {
+          deletedIndices.push(i)
+        }
+      }
+      // Delete from end to preserve indices
+      deletedIndices.sort((a, b) => b - a).forEach(index => {
+        operations.push({
+          type: 'row_delete',
+          index,
+          row: oldData.rows[index],
+        })
+      })
+    }
+
+    // Check for cell updates (only in existing rows)
+    const minRows = Math.min(oldData.rows.length, newData.rows.length)
+    const minCols = Math.min(
+      oldData.headers.length,
+      newData.headers.length,
+      ...oldData.rows.map(r => r.length),
+      ...newData.rows.map(r => r.length)
+    )
+
+    for (let row = 0; row < minRows; row++) {
+      const cellChanges: { col: number; oldValue: string | number; newValue: string | number }[] = []
+      for (let col = 0; col < minCols; col++) {
+        const oldValue = oldData.rows[row]?.[col]
+        const newValue = newData.rows[row]?.[col]
+        if (oldValue !== newValue && (oldValue !== undefined || newValue !== undefined)) {
+          cellChanges.push({
+            col,
+            oldValue: oldValue ?? '',
+            newValue: newValue ?? '',
+          })
+        }
+      }
+      if (cellChanges.length > 0) {
+        operations.push({
+          type: 'row_update',
+          index: row,
+          changes: cellChanges,
+        })
+      }
+    }
+
+    return {
+      timestamp: Date.now(),
+      operations,
+    }
+  }, [])
+
+  // Apply delta to reconstruct state
+  const applyDelta = useCallback((baseData: PreviewData, delta: Delta): PreviewData => {
+    let result: PreviewData = JSON.parse(JSON.stringify(baseData))
+
+    // Apply operations in order
+    for (const op of delta.operations) {
+      switch (op.type) {
+        case 'cell_update':
+          if (result.rows[op.row]) {
+            result.rows[op.row][op.col] = op.newValue
+          }
+          break
+
+        case 'row_add':
+          result.rows.splice(op.index, 0, [...op.row])
+          result.rowCount = result.rows.length
+          break
+
+        case 'row_delete':
+          result.rows.splice(op.index, 1)
+          result.rowCount = result.rows.length
+          break
+
+        case 'row_update':
+          if (result.rows[op.index]) {
+            op.changes.forEach(change => {
+              result.rows[op.index][change.col] = change.newValue
+            })
+          }
+          break
+
+        case 'column_add':
+          result.headers.splice(op.index, 0, op.header)
+          result.rows.forEach((row, idx) => {
+            row.splice(op.index, 0, op.values[idx] || '')
+          })
+          break
+
+        case 'column_delete':
+          result.headers.splice(op.index, 1)
+          result.rows.forEach(row => {
+            row.splice(op.index, 1)
+          })
+          break
+
+        case 'column_rename':
+          if (result.headers[op.index] === op.oldHeader) {
+            result.headers[op.index] = op.newHeader
+          }
+          break
+
+        case 'column_move':
+          // Move header
+          const [movedHeader] = result.headers.splice(op.fromIndex, 1)
+          result.headers.splice(op.toIndex, 0, movedHeader)
+          // Move column data
+          result.rows.forEach(row => {
+            const [movedCell] = row.splice(op.fromIndex, 1)
+            row.splice(op.toIndex, 0, movedCell)
+          })
+          break
+
+        case 'headers_update':
+          result.headers = [...op.newHeaders]
+          break
+      }
+    }
+
+    return result
+  }, [])
+
+  // Apply inverse delta for undo
+  const applyInverseDelta = useCallback((baseData: PreviewData, delta: Delta): PreviewData => {
+    let result: PreviewData = JSON.parse(JSON.stringify(baseData))
+
+    // Apply operations in reverse order with inverse operations
+    for (let i = delta.operations.length - 1; i >= 0; i--) {
+      const op = delta.operations[i]
+      switch (op.type) {
+        case 'cell_update':
+          if (result.rows[op.row]) {
+            result.rows[op.row][op.col] = op.oldValue
+          }
+          break
+
+        case 'row_add':
+          result.rows.splice(op.index, 1)
+          result.rowCount = result.rows.length
+          break
+
+        case 'row_delete':
+          result.rows.splice(op.index, 0, [...op.row])
+          result.rowCount = result.rows.length
+          break
+
+        case 'row_update':
+          if (result.rows[op.index]) {
+            op.changes.forEach(change => {
+              result.rows[op.index][change.col] = change.oldValue
+            })
+          }
+          break
+
+        case 'column_add':
+          result.headers.splice(op.index, 1)
+          result.rows.forEach(row => {
+            row.splice(op.index, 1)
+          })
+          break
+
+        case 'column_delete':
+          result.headers.splice(op.index, 0, op.header)
+          result.rows.forEach((row, idx) => {
+            row.splice(op.index, 0, op.values[idx] || '')
+          })
+          break
+
+        case 'column_rename':
+          if (result.headers[op.index] === op.newHeader) {
+            result.headers[op.index] = op.oldHeader
+          }
+          break
+
+        case 'column_move':
+          // Move header back
+          const [movedHeader] = result.headers.splice(op.toIndex, 1)
+          result.headers.splice(op.fromIndex, 0, movedHeader)
+          // Move column data back
+          result.rows.forEach(row => {
+            const [movedCell] = row.splice(op.toIndex, 1)
+            row.splice(op.fromIndex, 0, movedCell)
+          })
+          break
+
+        case 'headers_update':
+          result.headers = [...op.oldHeaders]
+          break
+      }
+    }
+
+    return result
+  }, [])
+
+  // Reconstruct current state from original + deltas
+  const reconstructState = useCallback((baseData: PreviewData, deltas: DeltaHistory, upToIndex: number): PreviewData => {
+    let state = JSON.parse(JSON.stringify(baseData))
+    for (let i = 0; i <= upToIndex && i < deltas.length; i++) {
+      state = applyDelta(state, deltas[i])
+    }
+    return state
+  }, [applyDelta])
 
   useEffect(() => {
     const updateWidth = () => {
@@ -108,8 +425,8 @@ export default function PreviewPage() {
           setPreviewData(parsed)
           const deepCopy = JSON.parse(JSON.stringify(parsed))
           setOriginalData(deepCopy) // Deep copy for discard
-          setChangeHistory([deepCopy]) // Initialize history with original
-          setCurrentHistoryIndex(0) // Set to first history entry
+          setDeltaHistory([]) // Initialize empty delta history
+          setCurrentHistoryIndex(-1) // No deltas yet
           setError(null)
           setIsLoading(false)
           // Clear sessionStorage after loading to prevent stale data
@@ -198,21 +515,29 @@ export default function PreviewPage() {
       }
 
       const extension = fileName.split('.').pop()?.toLowerCase()
-      let parsedData: PreviewData
+      let parsed: ParsedFile
 
       if (extension === 'csv') {
-        parsedData = await parseCSV(data, fileName, fileType)
+        parsed = await parseCsvBlob(data)
       } else if (extension === 'xlsx' || extension === 'xls') {
-        parsedData = await parseExcel(data, fileName, fileType)
+        parsed = await parseExcelBlob(data)
       } else {
         throw new Error('Unsupported file type. Please upload CSV or Excel files.')
+      }
+
+      const parsedData: PreviewData = {
+        headers: parsed.headers,
+        rows: parsed.rows,
+        fileName,
+        fileType,
+        rowCount: parsed.rows.length,
       }
 
       const deepCopy = JSON.parse(JSON.stringify(parsedData))
       setPreviewData(parsedData)
       setOriginalData(deepCopy) // Deep copy for discard
-      setChangeHistory([deepCopy]) // Initialize history with original
-      setCurrentHistoryIndex(0) // Set to first history entry
+      setDeltaHistory([]) // Initialize empty delta history
+      setCurrentHistoryIndex(-1) // No deltas yet
       setIsLoading(false)
     } catch (err: any) {
       setError(err.message || 'Failed to load file')
@@ -220,18 +545,24 @@ export default function PreviewPage() {
     }
   }
 
-  // Save snapshot to change history
-  const saveToHistory = useCallback((data: PreviewData) => {
-    const snapshot = JSON.parse(JSON.stringify(data)) // Deep copy
+  // Save delta to change history
+  const saveToHistory = useCallback((oldData: PreviewData, newData: PreviewData) => {
+    if (!originalData) return
+    
+    // Compute delta from old to new state
+    const delta = computeDelta(oldData, newData)
+    
+    // Only save if there are actual changes
+    if (delta.operations.length === 0) return
     
     // Update both states atomically
     setCurrentHistoryIndex((prevIndex) => {
-      setChangeHistory((prevHistory) => {
+      setDeltaHistory((prevHistory) => {
         // If we're not at the end of history, remove all entries after current index
         const newHistory = prevHistory.slice(0, prevIndex + 1)
-        newHistory.push(snapshot)
+        newHistory.push(delta)
         
-        // Limit history to last 50 changes to prevent memory issues
+        // Limit history to last 50 deltas to prevent memory issues
         const limitedHistory = newHistory.length > 50 
           ? newHistory.slice(-50) 
           : newHistory
@@ -245,85 +576,10 @@ export default function PreviewPage() {
         return limitedHistory
       })
       
-      // Return current index - it will be updated in setChangeHistory callback
+      // Return current index - it will be updated in setDeltaHistory callback
       return prevIndex
     })
-  }, [])
-
-  const parseCSV = async (file: Blob, fileName: string, fileType: string): Promise<PreviewData> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        try {
-          const text = e.target?.result as string
-          Papa.parse(text, {
-            header: false,
-            skipEmptyLines: true,
-            complete: (results) => {
-              const rows = results.data as (string | number)[][]
-              if (rows.length === 0) {
-                reject(new Error('CSV file is empty'))
-                return
-              }
-
-              const headers = rows[0] as string[]
-              const dataRows = rows.slice(1)
-
-              resolve({
-                headers,
-                rows: dataRows,
-                fileName,
-                fileType,
-                rowCount: dataRows.length,
-              })
-            },
-            error: (error) => {
-              reject(error)
-            },
-          })
-        } catch (err) {
-          reject(err)
-        }
-      }
-      reader.onerror = () => reject(new Error('Failed to read CSV file'))
-      reader.readAsText(file)
-    })
-  }
-
-  const parseExcel = async (file: Blob, fileName: string, fileType: string): Promise<PreviewData> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        try {
-          const data = e.target?.result
-          const workbook = XLSX.read(data, { type: 'binary' })
-          const firstSheetName = workbook.SheetNames[0]
-          const worksheet = workbook.Sheets[firstSheetName]
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
-
-          if (jsonData.length === 0) {
-            reject(new Error('Excel file is empty'))
-            return
-          }
-
-          const headers = (jsonData[0] as any[]).map((h) => String(h || ''))
-          const rows = jsonData.slice(1) as (string | number)[][]
-
-          resolve({
-            headers,
-            rows,
-            fileName,
-            fileType,
-            rowCount: rows.length,
-          })
-        } catch (err) {
-          reject(err)
-        }
-      }
-      reader.onerror = () => reject(new Error('Failed to read Excel file'))
-      reader.readAsArrayBuffer(file)
-    })
-  }
+  }, [computeDelta, originalData])
 
   // Convert headers to GridColumn format
   const getColumns = useCallback((): GridColumn[] => {
@@ -470,7 +726,7 @@ export default function PreviewPage() {
       }
       
       // Save to history before updating
-      saveToHistory(previewData)
+      saveToHistory(previewData, updatedData)
       
       setPreviewData(updatedData)
       setHasChanges(true)
@@ -492,7 +748,7 @@ export default function PreviewPage() {
     }
     
     // Save to history before updating
-    saveToHistory(previewData)
+    saveToHistory(previewData, updatedData)
     
     setPreviewData(updatedData)
     setHasChanges(true)
@@ -537,7 +793,7 @@ export default function PreviewPage() {
       }
       
       // Save to history before updating
-      saveToHistory(previewData)
+      saveToHistory(previewData, updatedData)
       
       setPreviewData(updatedData)
       setSelectedRows(CompactSelection.empty())
@@ -567,7 +823,7 @@ export default function PreviewPage() {
     }
     
     // Save to history before updating
-    saveToHistory(previewData)
+    saveToHistory(previewData, updatedData)
     
     setPreviewData(updatedData)
     setHasChanges(true)
@@ -593,7 +849,7 @@ export default function PreviewPage() {
       }
       
       // Save to history before updating
-      saveToHistory(previewData)
+      saveToHistory(previewData, updatedData)
       
       setPreviewData(updatedData)
       setSelectedColumn(null)
@@ -614,7 +870,7 @@ export default function PreviewPage() {
     }
     
     // Save to history before updating
-    saveToHistory(previewData)
+    saveToHistory(previewData, updatedData)
     
     setPreviewData(updatedData)
     setHasChanges(true)
@@ -676,8 +932,8 @@ export default function PreviewPage() {
       if (confirm('Are you sure you want to discard all unsaved changes? This action cannot be undone.')) {
         const deepCopy = JSON.parse(JSON.stringify(originalData))
         setPreviewData(deepCopy) // Deep copy to reset
-        setChangeHistory([deepCopy]) // Reset history to original
-        setCurrentHistoryIndex(0) // Reset history index
+        setDeltaHistory([]) // Reset delta history
+        setCurrentHistoryIndex(-1) // Reset history index
         setHasChanges(false)
         setSelectedRows(CompactSelection.empty())
         setError(null)
@@ -688,22 +944,22 @@ export default function PreviewPage() {
 
   // Handle undo (revert to previous change)
   const handleUndo = () => {
-    if (!previewData || changeHistory.length === 0 || currentHistoryIndex <= 0) return
+    if (!previewData || !originalData || deltaHistory.length === 0 || currentHistoryIndex < 0) return
     
     const previousIndex = currentHistoryIndex - 1
-    const previousData = changeHistory[previousIndex]
     
-    if (previousData) {
-      setPreviewData(JSON.parse(JSON.stringify(previousData))) // Deep copy
+    if (previousIndex < 0) {
+      // Revert to original
+      const deepCopy = JSON.parse(JSON.stringify(originalData))
+      setPreviewData(deepCopy)
+      setCurrentHistoryIndex(-1)
+      setHasChanges(false)
+    } else {
+      // Reconstruct state up to previous index
+      const previousState = reconstructState(originalData, deltaHistory, previousIndex)
+      setPreviewData(previousState)
       setCurrentHistoryIndex(previousIndex)
-      
-      // Check if we're back to original
-      if (previousIndex === 0 && originalData) {
-        const isSame = JSON.stringify(previousData) === JSON.stringify(originalData)
-        setHasChanges(!isSame)
-      } else {
-        setHasChanges(true)
-      }
+      setHasChanges(true)
     }
   }
 
@@ -714,8 +970,8 @@ export default function PreviewPage() {
     if (confirm('Are you sure you want to revert all changes back to the original file? This action cannot be undone.')) {
       const deepCopy = JSON.parse(JSON.stringify(originalData))
       setPreviewData(deepCopy)
-      setChangeHistory([deepCopy]) // Reset history to original
-      setCurrentHistoryIndex(0) // Reset history index
+      setDeltaHistory([]) // Reset delta history
+      setCurrentHistoryIndex(-1) // Reset history index
       setHasChanges(false)
       setSelectedRows(CompactSelection.empty())
       setError(null)
@@ -790,8 +1046,8 @@ export default function PreviewPage() {
       // Update original data to match saved data
       const deepCopy = JSON.parse(JSON.stringify(previewData))
       setOriginalData(deepCopy)
-      setChangeHistory([deepCopy]) // Reset history to saved state
-      setCurrentHistoryIndex(0) // Reset history index
+      setDeltaHistory([]) // Reset delta history
+      setCurrentHistoryIndex(-1) // Reset history index
       setHasChanges(false)
       setSuccessMessage('File saved successfully!')
       setTimeout(() => setSuccessMessage(null), 3000)
@@ -851,7 +1107,7 @@ export default function PreviewPage() {
                   Add Column
                 </button>
                 {/* Undo button */}
-                {changeHistory.length > 0 && currentHistoryIndex > 0 && (
+                {deltaHistory.length > 0 && currentHistoryIndex >= 0 && (
                   <button
                     onClick={handleUndo}
                     className="px-3 py-1.5 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-all duration-300 flex items-center gap-1.5"
@@ -1058,9 +1314,9 @@ export default function PreviewPage() {
                   <span className="text-xs text-orange-600 flex items-center gap-1">
                     <span className="material-symbols-outlined text-sm">edit</span>
                     Unsaved changes
-                    {changeHistory.length > 1 && (
+                    {deltaHistory.length > 0 && (
                       <span className="text-orange-500 ml-1">
-                        ({currentHistoryIndex} {currentHistoryIndex === 1 ? 'change' : 'changes'})
+                        ({currentHistoryIndex + 1} {currentHistoryIndex === 0 ? 'change' : 'changes'})
                       </span>
                     )}
                   </span>
@@ -1175,7 +1431,7 @@ export default function PreviewPage() {
                       }
                       
                       // Save to history before updating
-                      saveToHistory(previewData)
+                      saveToHistory(previewData, updatedData)
                       
                       setPreviewData(updatedData)
                       setHasChanges(true)
