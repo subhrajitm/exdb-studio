@@ -539,6 +539,31 @@ export default function PreviewPage() {
       setDeltaHistory([]) // Initialize empty delta history
       setCurrentHistoryIndex(-1) // No deltas yet
       setIsLoading(false)
+
+      // Update last_accessed_at in database
+      if (user && filePath) {
+        try {
+          // First get current access_count
+          const { data: currentFile } = await supabase
+            .from('files_metadata')
+            .select('access_count')
+            .eq('file_path', filePath)
+            .single()
+
+          if (currentFile) {
+            await supabase
+              .from('files_metadata')
+              .update({
+                last_accessed_at: new Date().toISOString(),
+                access_count: (currentFile.access_count || 0) + 1,
+              })
+              .eq('file_path', filePath)
+          }
+        } catch (err) {
+          // Silently fail - tracking is not critical
+          console.error('Error updating file access:', err)
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load file')
       setIsLoading(false)

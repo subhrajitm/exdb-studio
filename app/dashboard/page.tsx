@@ -21,6 +21,16 @@ interface FileItem {
   size?: number
 }
 
+interface DocumentStats {
+  totalFiles: number
+  filesThisWeek: number
+  filesThisMonth: number
+  uploadStreak: number
+  mostAccessedFile: string | null
+  totalRows: number
+  lastUploadDate: string | null
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading } = useAuth()
@@ -33,6 +43,8 @@ export default function DashboardPage() {
   const [editingFile, setEditingFile] = useState<string | null>(null) // Track which file is being renamed
   const [newFileName, setNewFileName] = useState<string>('')
   const [isRenaming, setIsRenaming] = useState(false)
+  const [documentStats, setDocumentStats] = useState<DocumentStats | null>(null)
+  const [isLoadingStats, setIsLoadingStats] = useState(true)
   const supabase = createClient()
 
   useEffect(() => {
@@ -43,6 +55,7 @@ export default function DashboardPage() {
 
     if (user) {
       loadUserFiles()
+      loadDocumentStats()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, loading])
@@ -189,6 +202,105 @@ export default function DashboardPage() {
       setFiles([])
       setTotalSize(0)
       setIsLoadingFiles(false)
+    }
+  }
+
+  const loadDocumentStats = async () => {
+    if (!user) return
+
+    try {
+      setIsLoadingStats(true)
+
+      // Get all files metadata
+      const { data: allFiles, error } = await supabase
+        .from('files_metadata')
+        .select('uploaded_at, access_count, file_name, row_count')
+        .eq('user_id', user.id)
+        .order('uploaded_at', { ascending: false })
+
+      if (error) {
+        console.error('Error loading document stats:', error)
+        setIsLoadingStats(false)
+        return
+      }
+
+      if (!allFiles || allFiles.length === 0) {
+        setDocumentStats({
+          totalFiles: 0,
+          filesThisWeek: 0,
+          filesThisMonth: 0,
+          uploadStreak: 0,
+          mostAccessedFile: null,
+          totalRows: 0,
+          lastUploadDate: null,
+        })
+        setIsLoadingStats(false)
+        return
+      }
+
+      const now = new Date()
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+      const filesThisWeek = allFiles.filter(
+        (f) => new Date(f.uploaded_at) >= oneWeekAgo
+      ).length
+
+      const filesThisMonth = allFiles.filter(
+        (f) => new Date(f.uploaded_at) >= oneMonthAgo
+      ).length
+
+      // Calculate upload streak (consecutive days with uploads)
+      const uploadDates = allFiles
+        .map((f) => new Date(f.uploaded_at).toDateString())
+        .filter((date, index, self) => self.indexOf(date) === index)
+        .sort()
+        .reverse()
+
+      let streak = 0
+      let currentDate = new Date()
+      currentDate.setHours(0, 0, 0, 0)
+
+      for (const dateStr of uploadDates) {
+        const uploadDate = new Date(dateStr)
+        uploadDate.setHours(0, 0, 0, 0)
+        const daysDiff = Math.floor(
+          (currentDate.getTime() - uploadDate.getTime()) / (24 * 60 * 60 * 1000)
+        )
+
+        if (daysDiff === streak) {
+          streak++
+          currentDate = new Date(uploadDate)
+        } else {
+          break
+        }
+      }
+
+      // Find most accessed file
+      const mostAccessed = allFiles.reduce(
+        (max, file) =>
+          (file.access_count || 0) > (max.access_count || 0) ? file : max,
+        allFiles[0]
+      )
+
+      const totalRows = allFiles.reduce(
+        (sum, file) => sum + (file.row_count || 0),
+        0
+      )
+
+      setDocumentStats({
+        totalFiles: allFiles.length,
+        filesThisWeek,
+        filesThisMonth,
+        uploadStreak: streak,
+        mostAccessedFile: mostAccessed?.file_name || null,
+        totalRows,
+        lastUploadDate: allFiles[0]?.uploaded_at || null,
+      })
+    } catch (err) {
+      console.error('Error loading document stats:', err)
+    } finally {
+      setIsLoadingStats(false)
     }
   }
 
@@ -627,25 +739,90 @@ export default function DashboardPage() {
           )}
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
             <div className="p-2.5 bg-black/5 border border-black/10">
-              <p className="text-xs text-black/60 mb-0.5">Files</p>
-              <p className="text-xl font-light text-black">{files.length}</p>
+              <p className="text-xs text-black/60 mb-0.5">Total Files</p>
+              <p className="text-xl font-light text-black">
+                {documentStats ? documentStats.totalFiles : files.length}
+              </p>
             </div>
             <div className="p-2.5 bg-black/5 border border-black/10">
               <p className="text-xs text-black/60 mb-0.5">Storage</p>
               <p className="text-xl font-light text-black">{formatFileSize(totalSize)}</p>
             </div>
             <div className="p-2.5 bg-black/5 border border-black/10">
-              <button
-                onClick={loadUserFiles}
-                className="w-full flex items-center justify-center gap-1.5 text-xs text-black/70 hover:text-black transition-colors"
-                title="Refresh files"
-              >
-                <span className="material-symbols-outlined text-sm">refresh</span>
-                <span>Refresh</span>
-              </button>
+              <p className="text-xs text-black/60 mb-0.5">This Week</p>
+              <p className="text-xl font-light text-black">
+                {documentStats ? documentStats.filesThisWeek : '-'}
+              </p>
             </div>
+            <div className="p-2.5 bg-black/5 border border-black/10">
+              <p className="text-xs text-black/60 mb-0.5">Upload Streak</p>
+              <p className="text-xl font-light text-black">
+                {documentStats ? `${documentStats.uploadStreak} days` : '-'}
+              </p>
+            </div>
+          </div>
+
+          {/* Document Tracking Stats */}
+          {documentStats && documentStats.totalFiles > 0 && (
+            <div className="mb-3 p-3 bg-black/5 border border-black/10">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-medium text-black/80">Document Insights</h3>
+                <Link
+                  href="/chatbot"
+                  className="text-xs text-black/60 hover:text-black transition-colors flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-sm">smart_toy</span>
+                  Ask Chatbot
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                <div>
+                  <span className="text-black/60">Total Rows:</span>{' '}
+                  <span className="font-medium text-black">
+                    {documentStats.totalRows.toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-black/60">This Month:</span>{' '}
+                  <span className="font-medium text-black">
+                    {documentStats.filesThisMonth} files
+                  </span>
+                </div>
+                {documentStats.mostAccessedFile && (
+                  <div>
+                    <span className="text-black/60">Most Accessed:</span>{' '}
+                    <span className="font-medium text-black truncate block">
+                      {documentStats.mostAccessedFile.length > 20
+                        ? documentStats.mostAccessedFile.substring(0, 20) + '...'
+                        : documentStats.mostAccessedFile}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Quick Actions */}
+          <div className="mb-3 flex items-center gap-2">
+            <button
+              onClick={() => {
+                loadUserFiles()
+                loadDocumentStats()
+              }}
+              className="px-3 py-1.5 text-xs font-medium text-black/70 border border-black/20 hover:bg-black/5 transition-colors flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-sm">refresh</span>
+              Refresh
+            </button>
+            <Link
+              href="/chatbot"
+              className="px-3 py-1.5 text-xs font-medium text-white bg-black hover:bg-black/90 transition-colors flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-sm">smart_toy</span>
+              Ask Chatbot
+            </Link>
           </div>
 
           {/* Files Section */}

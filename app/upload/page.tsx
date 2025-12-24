@@ -119,21 +119,47 @@ export default function UploadPage() {
         throw uploadError
       }
 
+      setUploadProgress(60)
+
+      // Extract schema information from parsed data
+      const sampleRows = parsedData.rows.slice(0, 10)
+      const fullTextContent = [
+        selectedFile.name,
+        ...parsedData.headers,
+        ...parsedData.rows.slice(0, 100).flat().map(cell => String(cell || ''))
+      ].join(' ').toLowerCase()
+
+      // Save file metadata to database for tracking and chatbot
+      const { error: dbError } = await supabase
+        .from('files_metadata')
+        .insert({
+          user_id: user.id,
+          file_name: selectedFile.name,
+          file_path: filePath,
+          file_size: selectedFile.size,
+          file_type: selectedFile.name.split('.').pop()?.toLowerCase(),
+          mime_type: selectedFile.type,
+          original_name: selectedFile.name,
+          column_headers: parsedData.headers,
+          row_count: parsedData.rows.length,
+          sample_data: sampleRows,
+          full_text_content: fullTextContent,
+          is_indexed: true,
+          indexing_status: 'completed',
+          uploaded_at: new Date().toISOString(),
+        })
+
+      if (dbError) {
+        console.error('Error saving file metadata:', dbError)
+        // Don't throw - file upload succeeded, metadata save failed
+        // User can still use the file
+      }
+
       setUploadProgress(100)
       setIsUploading(false)
 
       // Navigate to preview page with file path as query parameter
-      // The preview page will load the file from Supabase Storage
       router.push(`/preview?path=${encodeURIComponent(filePath)}&name=${encodeURIComponent(selectedFile.name)}&type=${encodeURIComponent(selectedFile.type || '')}`)
-
-      // Optionally, you can save file metadata to database here
-      // await supabase.from('files').insert({
-      //   user_id: user.id,
-      //   file_name: selectedFile.name,
-      //   file_path: filePath,
-      //   file_size: selectedFile.size,
-      //   file_type: selectedFile.type,
-      // })
     } catch (err: any) {
       let errorMessage = err.message || 'Failed to upload file'
       

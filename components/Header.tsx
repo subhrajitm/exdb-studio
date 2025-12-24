@@ -72,6 +72,12 @@ export default function Header() {
                 >
                   Upload
                 </Link>
+                <Link
+                  className="px-3 py-1.5 text-xs font-medium text-black/70 hover:text-black hover:bg-black/5 transition-all duration-300"
+                  href="/chatbot"
+                >
+                  Chatbot
+                </Link>
                 <button
                   onClick={handleSignOut}
                   className="px-3 py-1.5 text-xs font-semibold text-white bg-black hover:bg-black/90 transition-all duration-300 shadow-sm"
